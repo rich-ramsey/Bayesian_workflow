@@ -1,0 +1,633 @@
+---
+title: "model"
+author: "Rich"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This file builds a series of Bayesian regression models, performs model checks and model comparisons.
+
+## load the libraries that we will be using ## 
+
+## install ##
+
+```{r install-pkg}
+# install.packages("remotes")
+# remotes::install_github("stan-dev/cmdstanr")
+# 
+# install.packages("devtools")
+# devtools::install_github("jmgirard/standist")
+# 
+# install.packages(c("tidyverse", "RColorBrewer", "patchwork", "brms",
+#                    "tidybayes", "bayesplot", "patchwork", "future", "faux"))
+```
+
+take a snapshot of loaded packages and update the lock.file using renv
+
+```{r snapshot-renv}
+# take a snapshot and update the lock.file
+# renv::snapshot() # this is only necessary when new packages or installed or packages are updated.
+```
+
+## load ##
+
+```{r load-pkg}
+pkg <- c("cmdstanr", "standist", "tidyverse", "RColorBrewer", "patchwork", 
+         "brms", "tidybayes", "bayesplot", "future", "parallel", "faux")
+
+lapply(pkg, library, character.only = TRUE)
+```
+
+## settings ##
+
+```{r set-options}
+options(brms.backend = "cmdstanr",
+        mc.cores = parallel::detectCores(),
+        future.fork.enable = TRUE,
+        future.rng.onMisuse = "ignore") ## automatically set in RStudio
+
+supportsMulticore()
+
+detectCores()
+```
+
+
+The overall Bayesian workflow will be split up into several sections, as follows:
+
+1. prior predictions.
+2. planning for power/precision via simulation.
+3. build a series of models and perform model checking and model comparison.
+4. evaluate the posterior.
+
+This script is part (3) above. 
+
+## section 1 - read in data and prior models ##
+
+## read in the data ##
+
+normally, if you had collected real data, you would first read and wrangle the 
+raw data (probably in a separate wrangle file). Here, however, we are just simulating 
+data, so we can either simulate it (as we did before) or we can load in 
+previously simulated and saved data.
+
+we'll just simulate for now.
+
+```{r}
+# make it reproducible
+set.seed(1)
+
+# define parameters
+subj_n = 25  # number of subjects
+item_n = 4  # number of items (4 faces x 2 repeats (half gaze left))
+rep_n = 4 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
+b0 = 0      # intercept
+b1 = 0.5      # fixed effect of condition
+u0s_sd = 1   # random intercept SD for subjects
+u1s_sd = 0.5   # random b1 slope SD for subjects
+u0i_sd = 0.5   # random intercept SD for items
+u1i_sd = 0.25   # random b1 slope SD for items
+r01s = 0.3   # correlation between random effects 0 and 1 for subjects
+r01i = 0.3   # correlation between random effects 0 and 1 for items
+sigma_sd = 2 # error SD
+
+# set up data structure
+data <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
+  # add and recode categorical variables
+  add_within("item", gaze = c("left", "right")) %>%
+  add_within("subj", condition = c("congr", "incong")) %>%
+  add_contrast("condition", "anova", add_cols = TRUE, colnames = "cond") %>%
+  # add random effects
+  add_ranef("subj", u0s = u0s_sd, u1s = u1s_sd, .cors = r01s) %>%
+  add_ranef("item", u0i = u0i_sd, u1i = u1i_sd, .cors = r01i) %>%
+  add_ranef(sigma = sigma_sd) %>%
+  # calculate DV
+  mutate(rt = b0 + u0s + u0i + (b1 + u1s + u1i) * cond + sigma)
+
+head(data)
+str(data)
+summary(data)
+
+# save out the data
+# 25p data, for example
+write_csv(data, "data/n25/data.csv")
+```
+
+density plot
+
+```{r}
+ggplot(data, aes(x=rt, fill=condition)) +
+   geom_density(alpha = 0.3, colour = "darkgrey") +
+   scale_fill_brewer(palette = "Dark2")+
+   theme_bw()+
+   theme(panel.grid = element_blank()) +
+   theme(legend.position = "bottom") +
+   ggtitle("rt by condition")
+# ggsave ("figures/density.jpeg")
+```
+
+
+
+## start building some models ##
+
+## bm0 - intercepts only ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1)
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## visualise priors ##
+
+here we would normally visualise priors of interest to make a judgment about what
+would constitute weakly informative priors. But we did this in the planning stage,
+so we'll just repeat the plots here as a reminder.
+
+```{r}
+visualize("normal(0, 0.5)", "normal(0, 1)", "normal(0, 2)", 
+          xlim = c(-4, 4))
+```
+
+As before, 0,1 for the intercept provides good coverage for what we might expect
+for the intercept or mean RT.
+
+## set priors ##
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "sigma")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm0 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm0")
+summary(bm0)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm0)
+```
+
+pp check
+
+```{r}
+ppbm0 <- pp_check(bm0, ndraws = 100)
+ppbm0
+```
+
+
+## bm1 - plus condition ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1 + cond)
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## visualise priors ##
+
+ok, for slopes / effects, (0,0.5) is my standard for lots of psych effects. The 
+basic logic is that this covers a standarised effect of -1 to 1, and anything that
+big that replicates well is very rare in cognitive stuff.
+
+```{r}
+visualize("normal(0, 0.5)", "normal(0, 1)", "normal(0, 2)", 
+          xlim = c(-4, 4))
+```
+
+## set priors ##
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sigma")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm1 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm1")
+summary(bm1)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm1)
+```
+
+pp check
+
+```{r}
+ppbm1 <- pp_check(bm1, ndraws = 100)
+ppbm1
+```
+
+
+## bm1.1 - plus varying intercepts for items ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1 + cond +
+               (1 | item))
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## visualise priors ##
+
+This is no longer necessary as key ones are set.
+
+## set priors ##
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sd"),
+  set_prior("normal(0, 0.5)", class = "sigma")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm1.1 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm1.1")
+summary(bm1.1)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm1.1)
+```
+
+pp check
+
+```{r}
+ppbm1.1 <- pp_check(bm1.1, ndraws = 100)
+ppbm1.1
+```
+
+
+## bm1.2 - plus varying intercepts for participants ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1 + cond +
+               (1 | item) +
+               (1 | subj))
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## set priors ##
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sd"),
+  set_prior("normal(0, 0.5)", class = "sigma")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm1.2 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm1.2")
+summary(bm1.2)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm1.2)
+```
+
+pp check
+
+```{r}
+ppbm1.2 <- pp_check(bm1.2, ndraws = 100)
+ppbm1.2
+```
+
+
+## bm1.3 - plus varying slopes (effects of cond) for items ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1 + cond +
+               (1 + cond | item) +
+               (1 | subj))
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## set priors ##
+
+now we need to add a prior for the correlation between varying effects. This is
+achieved by lkj below. Richard McElreath has part of his book and lectures on
+this.
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sd"),
+  set_prior("normal(0, 0.5)", class = "sigma"),
+  set_prior("lkj(2)", class = "cor")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm1.3 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm1.3")
+summary(bm1.3)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm1.3)
+```
+
+pp check
+
+```{r}
+ppbm1.3 <- pp_check(bm1.3, ndraws = 100)
+ppbm1.3
+```
+
+
+## bm1.4 - plus varying slopes (effects of cond) for participants ##
+
+## formula ##
+
+```{r}
+formula = bf(rt ~ 1 + cond +
+               (1 + cond | item) +
+               (1 + cond | subj))
+```
+
+## check the priors available ##
+
+```{r}
+get_prior(formula,
+          data = data, family = gaussian())
+```
+
+## set priors ##
+
+same as before for bm1.3
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sd"),
+  set_prior("normal(0, 0.5)", class = "sigma"),
+  set_prior("lkj(2)", class = "cor")
+)
+```
+
+# run the model #
+
+```{r}
+plan(multicore)
+bm1.4 <- brm(formula = formula,
+        data = data, family = gaussian(),
+        prior = priors,
+        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        save_pars = save_pars(all=TRUE),
+        seed = 123,
+        file = "models/bm1.4")
+summary(bm1.4)
+```
+
+## take a look ##
+
+chains
+
+```{r}
+plot(bm1.4)
+```
+
+pp check
+
+```{r}
+ppbm1.4 <- pp_check(bm1.4, ndraws = 100)
+ppbm1.4
+```
+
+
+## model diagnostics for the full model ##
+
+first take posterior draws
+
+```{r}
+post <- as_draws_df(bm1.4)
+str(post)
+```
+
+## look at the chains for the key variables of interest ##
+
+```{r}
+chains <- post %>% 
+  select(contains(c("b_", "sd_", "cor_", "sigma", "chain"))) %>%  
+  mutate(chain = .chain)
+head(chains)
+```
+
+plot them 
+
+```{r} 
+p_chains <- chains %>% 
+  mcmc_trace(facet_args = list(ncol = 4)) +
+  scale_x_continuous(breaks = c(0, 4000)) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+p_chains
+
+# save it
+ggsave ("figures/bm1.4_chains.jpeg",
+        width = 20, height = 13, units = "in", dpi = 300)
+```
+
+## other diagnostics ##
+
+```{r}
+# # these two below are worth reporting.
+bm1.4_neff <- mcmc_plot(bm1.4, type = "neff")
+bm1.4_neff
+# ggsave("figures/bm1.4_neff.jpeg")
+# 
+bm1.4_rhat <- mcmc_plot(bm1.4, type = "rhat")
+bm1.4_rhat
+# ggsave("figures/bm1.4_rhat.jpeg")
+# 
+bm1.4_diag <- bm1.4_neff / bm1.4_rhat
+bm1.4_diag
+ggsave("figures/bm1.4_diag.jpeg")
+```
+
+
+## model comparison ##
+
+## compare models via LOO ##
+
+add loo
+
+```{r}
+plan(multicore)
+bm0 <- add_criterion(bm0, "loo")
+bm1 <- add_criterion(bm1, "loo")
+bm1.1 <- add_criterion(bm1.1, "loo")
+bm1.2 <- add_criterion(bm1.2, "loo")
+bm1.3 <- add_criterion(bm1.3, "loo")
+bm1.4 <- add_criterion(bm1.4, "loo")
+```
+
+take a look at the loo output
+
+```{r}
+print(bm0$criteria$loo)
+print(bm1$criteria$loo)
+print(bm1.1$criteria$loo)
+print(bm1.2$criteria$loo)
+print(bm1.3$criteria$loo)
+print(bm1.4$criteria$loo)
+```
+
+all the values look good and there are no concerns.
+
+# now compare the models #
+
+```{r}
+l <- loo_compare(bm0,bm1,bm1.1,bm1.2,bm1.3,bm1.4, criterion = "loo") %>% 
+  print(l, simplify = F)
+```
+
+# here are the loo weights #
+
+```{r}
+weights <- model_weights(bm0,bm1,bm1.1,bm1.2,bm1.3,bm1.4,
+              weights = "loo") %>% 
+  round(digits = 3)
+print(weights, simplify = F)
+```
+
+# plot model comparison #
+
+```{r}
+l_dat <- l %>%
+  data.frame() %>% 
+  rownames_to_column(var = "model")
+l_dat
+
+l_plot <-  ggplot(l_dat) +
+  geom_pointrange(aes(x = reorder(model, -elpd_loo), y = elpd_loo,
+                      ymin = elpd_loo - se_elpd_loo,
+                      ymax = elpd_loo + se_elpd_loo,
+                      color = model),
+                  shape = 16) +
+  coord_flip() +
+  labs(x = "model", y = "elpd_loo",
+       title = "model comparison via Loo") +
+  theme_bw() +
+  theme(legend.position = "none")
+l_plot
+
+ggsave("figures/loo_plot.jpeg", width = 6, height = 2)
+```

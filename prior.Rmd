@@ -1,0 +1,339 @@
+---
+title: "prior"
+author: "Rich"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This file samples the prior distribution to generate predictions. The main aim
+is to check to see if the priors generate values that look sensible, given our
+domain knowledge of the type of data.
+
+## load the libraries that we will be using ## 
+
+## install ##
+
+```{r install-pkg}
+# install.packages("remotes")
+# remotes::install_github("stan-dev/cmdstanr")
+# 
+# install.packages("devtools")
+# devtools::install_github("jmgirard/standist")
+# 
+# install.packages(c("tidyverse", "RColorBrewer", "patchwork", "brms",
+#                    "tidybayes", "bayesplot", "patchwork", "future", "faux"))
+```
+
+take a snapshot of loaded packages and update the lock.file using renv
+
+```{r snapshot-renv}
+# take a snapshot and update the lock.file
+# renv::snapshot() # this is only necessary when new packages or installed or packages are updated.
+```
+
+## load ##
+
+```{r load-pkg}
+pkg <- c("cmdstanr", "standist", "tidyverse", "RColorBrewer", "patchwork", 
+         "brms", "tidybayes", "bayesplot", "future", "parallel", "faux")
+
+lapply(pkg, library, character.only = TRUE)
+```
+
+## settings ##
+
+```{r set-options}
+options(brms.backend = "cmdstanr",
+        mc.cores = parallel::detectCores(),
+        future.fork.enable = TRUE,
+        future.rng.onMisuse = "ignore") ## automatically set in RStudio
+
+supportsMulticore()
+
+detectCores()
+```
+
+
+The overall Bayesian workflow will be split up into several sections, as follows:
+
+1. prior predictions.
+2. planning for power/precision via simulation.
+3. build a series of models and perform model checking and model comparison.
+4. evaluate the posterior.
+
+This script is part (1) above. 
+
+## prior predictions ##
+
+## section 1 - a simple dataset ##
+
+- say something about prior preds. quote Gelman et al.
+
+- describe the example design/s, which vary in complexity. dv=rt.
+
+d1 - congr vs incon, no varying effects.
+
+d2 - congr vs incon, varying intercepts and slopes for pid and items.
+
+having two designs means that folks might follow along a little easier without
+getting lost in varying effects (if they are not familiar with them).
+
+Also make a note about the choice of distribution. e.g., RT data tends to be 
+left skewed and gaussian models are a sub-optimal fit. Various other dists are better
+e.g., link here: https://lindeloev.shinyapps.io/shiny-rt/. Shifted lognormal, 
+for example, is one that we have used before in our own work. For simplicity and 
+convenience, we will generate gaussian data here and use a gaussian model. 
+
+simulate some data
+
+```{r}
+# define sample size
+n = 100
+
+# define the within pt conditions
+within <- list(condition = c("congr", "incon"))
+
+# define the means per condition
+mu <- data.frame(
+  condition = c(700, 750),
+  row.names = within$condition
+)
+
+# add factor labels for plotting
+vardesc <- c(condition = "condition")
+
+d1 <- sim_design(within, 
+                 n = n, mu = mu, sd = 25, r = .5,
+                 empirical = TRUE, vardesc = vardesc, plot = TRUE)
+head(d1)
+```
+
+make it into a longer format
+
+```{r}
+d1 <- d1 %>% 
+  pivot_longer(-id,
+               names_to = "condition",
+               values_to = "rt")
+head(d1)
+
+# save initial data
+write_csv(d1, "data/d1.csv")
+```
+
+sample the prior
+
+formula
+
+```{r}
+formula = bf(rt ~ 1 + condition) 
+```
+
+check priors
+
+```{r}
+get_prior(data = d1,
+          family = gaussian,
+          formula)
+```
+
+visualise prior settings
+
+in original units 
+
+for the intercept
+
+```{r}
+visualize("normal(700, 200)", "normal(700, 150)", "normal(700, 100)", 
+          "normal(700, 50)", 
+          xlim = c(0, 1200))
+```
+
+ok, so based on what we know about these kinds of tasks 700,100 or 700,150 seems
+pretty good for a weakly informative approach
+
+for the effect of condition
+
+```{r}
+visualize("normal(0, 10)", "normal(0, 25)", "normal(0, 50)",
+          xlim = c(-100, 100))
+```
+
+ok, based on this, 0,50 would do the job because effects over 100 or below -100
+seem unlikely, given what we know about these tasks. Narrower could be better 
+still tbh.
+
+
+set priors
+
+(you could also leave them unspecified and go with default priors, but I think
+it's good to keep practicing the logic and though process behind them, so I try 
+to set them explicitly whenever I can.)
+
+```{r}
+priors <- c(
+  set_prior("normal(700, 150)", class = "Intercept"),
+  set_prior("normal(0, 50)", class = "b"),
+  set_prior("normal(0, 50)", class = "sigma")
+)
+```
+
+build the model to sample the prior
+
+```{r}
+bp1 <- brm(data = d1,
+      family = gaussian,
+      formula = formula,
+      prior = priors,
+      seed = 1,
+      sample_prior = "only")
+summary(bp1)
+```
+
+1 divergent transition (out of 4000). But because we are using 200 observations
+as a test, let's just ignore this for now.
+
+let's take a look
+
+```{r}
+plot(bp1)
+```
+
+now let's take a look at the prior predictions
+
+pp_check
+
+```{r}
+prior_dist <- pp_check(bp1, ndraws=100) +
+  ggtitle("prior_predictions")
+prior_dist
+```
+
+
+## section 2 - a more complicated and realistic dataset ##
+
+simulate some data
+
+```{r}
+# define parameters
+subj_n = 25  # number of subjects
+item_n = 10  # number of items (10 faces x 8 repeats (half gaze left))
+rep_n = 8 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
+b0 = 725      # intercept
+b1 = 50      # fixed effect of condition
+u0s_sd = 50   # random intercept SD for subjects
+u1s_sd = 10   # random b1 slope SD for subjects
+u0i_sd = 25   # random intercept SD for items 
+u1i_sd = 5   # random b1 slope SD for items
+r01s = 0.3   # correlation between random effects 0 and 1 for subjects
+r01i = 0.3   # correlation between random effects 0 and 1 for items
+sigma_sd = 50 # error SD
+
+# set up data structure
+d2 <- add_random(subj = subj_n, item = item_n, rep = rep_n) %>%
+  # add and recode categorical variables
+  add_within("item", gaze = c("left", "right")) %>%
+  add_within("subj", condition = c("congr", "incong")) %>%
+  add_contrast("condition", "anova", add_cols = TRUE, colnames = "cond") %>%
+  # add random effects 
+  add_ranef("subj", u0s = u0s_sd, u1s = u1s_sd, .cors = r01s) %>%
+  add_ranef("item", u0i = u0i_sd, u1i = u1i_sd, .cors = r01i) %>%
+  add_ranef(sigma = sigma_sd) %>%
+  # calculate DV
+  mutate(rt = b0 + u0s + u0i + (b1 + u1s + u1i) * cond + sigma)
+
+head(d2)
+str(d2)
+summary(d2)
+
+# save initial data
+write_csv(d2, "data/d2.csv")
+```
+
+density plot
+
+```{r}
+ggplot(d2, aes(x=rt, fill=condition)) +
+   geom_density(alpha = 0.3, colour = "darkgrey") +
+   scale_fill_brewer(palette = "Dark2")+
+   theme_bw()+
+   theme(panel.grid = element_blank()) +
+   theme(legend.position = "none") +
+   ggtitle("rt by condition")
+# ggsave ("figures/density.jpeg")
+```
+
+sample the prior
+
+formula
+
+```{r}
+formula = bf(rt ~ 1 + cond + 
+               (1 + cond | subj) +
+               (1 + cond | item)) 
+```
+
+check priors
+
+```{r}
+get_prior(data = d2,
+          family = gaussian,
+          formula)
+```
+
+visualise prior settings
+
+we did this above.
+
+set priors
+
+(you could also leave them unspecified and go with default priors, but I think
+it's good to keep practicing the logic and though process behind them, so I try 
+to set them explicitly whenever I can.)
+
+```{r}
+priors <- c(
+  set_prior("normal(700, 150)", class = "Intercept"),
+  set_prior("normal(0, 50)", class = "b"),
+  set_prior("normal(0, 50)", class = "sigma"),
+  set_prior("normal(0, 50)", class = "sd"),
+  set_prior("lkj(2)", class = "cor")
+)
+```
+
+build the model to sample the prior
+
+```{r}
+bp2 <- brm(data = d2,
+      family = gaussian,
+      formula = formula,
+      prior = priors,
+      seed = 1,
+      sample_prior = "only")
+summary(bp2)
+```
+
+that built with no problems.
+
+let's take a look
+
+```{r}
+plot(bp2)
+```
+
+now let's take a look at the prior predictions
+
+pp_check
+
+```{r}
+prior_dist2 <- pp_check(bp2, ndraws=100, type = "dens_overlay_grouped",
+                        group = "cond") +
+  ggtitle("prior_predictions")
+prior_dist2
+```

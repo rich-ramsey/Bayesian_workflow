@@ -1,0 +1,424 @@
+---
+title: "post"
+author: "Rich"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This file visualises and tabulates parameters from the model/s that were built
+in the model.Rmd file.
+
+## load the libraries that we will be using ## 
+
+## install ##
+
+```{r install-pkg}
+# install.packages(c("tidyverse", "RColorBrewer", "patchwork", "brms",
+#                    "tidybayes", "bayesplot", "patchwork", "future", 
+#                    "sjPlot", "modelr"))
+```
+
+take a snapshot of loaded packages and update the lock.file using renv
+
+```{r snapshot-renv}
+# take a snapshot and update the lock.file
+# renv::snapshot() # this is only necessary when new packages or installed or packages are updated.
+```
+
+## load ##
+
+```{r load-pkg}
+pkg <- c("tidyverse", "RColorBrewer", "patchwork", "brms", 
+         "tidybayes", "bayesplot", "future", "parallel", 
+         "sjPlot", "modelr")
+
+lapply(pkg, library, character.only = TRUE)
+```
+
+## settings ##
+
+```{r set-options}
+options(mc.cores = parallel::detectCores(),
+        future.fork.enable = TRUE,
+        future.rng.onMisuse = "ignore") ## automatically set in RStudio
+
+supportsMulticore()
+
+detectCores()
+```
+
+# Read in previously saved brms models object files and/or posterior predictions ##
+
+Read in the models.
+
+```{r}
+bm0 <- readRDS("models/n25/bm0.rds")
+bm1 <- readRDS("models/n25/bm1.rds")
+bm1.1 <- readRDS("models/n25/bm1.1.rds")
+bm1.2 <- readRDS("models/n25/bm1.2.rds")
+bm1.3 <- readRDS("models/n25/bm1.3.rds")
+## the full model
+bm1.4 <- readRDS("models/n25/bm1.4.rds")
+```
+
+now read in the posterior predictions, if available.
+
+```{r}
+# p_preds <- 
+```
+
+## read in the data ##
+
+```{r}
+data <- read_csv("data/n25/data.csv")
+head(data)
+```
+
+
+## Look at the point and interval estimates for the full model ##
+
+using posterior_samples and tidybayes. (there are shortcut functions for this, 
+but I like to see the posterior samples and wrangle them myself.)
+
+```{r}
+post <- as_draws_df(bm1.4) %>%  #
+  select(-lp__) %>% 
+  as_tibble()
+
+post_summary <- posterior_summary(bm1.4, robust = TRUE)
+
+# all fixed effects
+post_qi_b <- post %>%
+  select(starts_with("b_")) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  median_qi(value)
+head(post_qi_b)
+
+# varying effects - SD
+post_qi_sd <- post %>%
+  select(starts_with("sd_")) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  median_qi(value)
+head(post_qi_sd)
+
+# individual item and SD variation
+# all individual items/pt variation
+vary_vals <- post %>%
+  select(starts_with("r_")) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  median_qi(value)
+head(vary_vals)
+
+# item variation
+vary_vals_item <- post %>%
+  select(starts_with("r_")) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  filter(str_detect(name, "item")) %>% 
+  median_qi(value)
+head(vary_vals_item)
+
+# participant variation
+vary_vals_pt <- post %>%
+  select(starts_with("r_")) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  filter(str_detect(name, "subj")) %>% 
+  median_qi(value)
+head(vary_vals_pt)
+```
+
+## Visualise fixed effects ##
+
+Using posterior_samples and tidybayes
+
+```{r}
+## fixed effects of interest, excluding basic intercepts for the ordinal model 
+tidy_fixed <- post %>% 
+  select(starts_with("b_")) %>% # select and rename in simpler labels
+  pivot_longer(everything()) %>% # move from wide to long
+  mutate(key = factor(name, levels=unique(name)),
+         term = if_else(str_detect(key, "Intercept"), "intercept", "condition"),
+         term = factor(term, levels=c("intercept", "condition")))
+head(tidy_fixed)
+tail(tidy_fixed)
+
+check.labels <- tidy_fixed %>% 
+ group_by(key, term) %>% 
+ distinct(key, term)
+check.labels
+
+p_tidy_fixed <- ggplot(tidy_fixed, aes(x = value, y = fct_rev(term), fill=term)) +  
+  geom_vline(xintercept = 0, color = "grey", alpha = 5/10) +
+  stat_halfeye(point_size = 1) +
+  labs(title = "Coefficient plot for fixed effects (predictors)",
+       x = NULL, y = NULL) +
+  theme_bw() +
+  scale_fill_brewer(palette="Dark2") +
+  theme(panel.grid   = element_blank(),
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2), 
+                                          linetype = 3),
+        axis.text.y  = element_text(hjust = 0),
+        axis.ticks.y = element_blank(),
+        legend.position = "none")+
+  coord_cartesian(xlim =c(-1, 1))+
+  scale_x_continuous(breaks=seq(-1, 1, 0.25))
+p_tidy_fixed
+
+# n25
+ggsave ("figures/n25/bm1.4_fixef.jpeg")
+```
+
+## make a table of fixed effects ##
+
+```{r}
+fix_tab <- post_qi_b %>%
+  mutate(name = factor(name, levels=unique(name)),
+         term = if_else(str_detect(name, "Intercept"), "intercept", "condition"),
+         term = factor(term, levels=c("intercept", "condition"))) %>%  
+  arrange(term) %>% 
+  select(term, value, .lower, .upper)
+fix_tab
+
+tab_df(fix_tab,
+       alternate.rows = T,
+       title="Fixed effects",
+       file="tables/n25/bm1.4_fixed.doc")
+```
+
+## plot the effect of condition across the different models ##
+
+wrangle all models with cond as a predictor
+
+```{r}
+tidy_fixed_all <- bind_rows(as_draws_df(bm1),
+                      as_draws_df(bm1.1),
+                      as_draws_df(bm1.2),
+                      as_draws_df(bm1.3),
+                      as_draws_df(bm1.4)) %>% 
+  mutate(model = rep(c("bm1", "bm1.1", "bm1.2", "bm1.3", "bm1.4"), each = n() / 5)) %>% 
+  select("b_Intercept", "b_cond", "model") %>%
+  pivot_longer(-model) %>% 
+  mutate(term = if_else(str_detect(name, "Intercept"), "intercept", "condition"),
+         term = factor(term, levels=c("intercept", "condition")),
+         model = factor(model)) %>% 
+  select(model, term, value)
+head(tidy_fixed_all)
+str(tidy_fixed_all)
+```
+
+and plot
+
+```{r}
+p_tidy_fixed_all <- ggplot(tidy_fixed_all, aes(x = value, y = model, fill=term)) +  
+  geom_vline(xintercept = 0, color = "grey", alpha = 5/10) +
+  stat_halfeye(point_size = 1) +
+  labs(title = "Coefficient plot for fixed effects (predictors)",
+       x = NULL, y = NULL) +
+  theme_bw() +
+  scale_fill_brewer(palette="Dark2") +
+  theme(panel.grid   = element_blank(),
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2), 
+                                          linetype = 3),
+        axis.text.y  = element_text(hjust = 0),
+        axis.ticks.y = element_blank(),
+        legend.position = "none")+
+  coord_cartesian(xlim =c(-1, 1))+
+  scale_x_continuous(breaks=seq(-1, 1, 0.5)) +
+  facet_wrap(~term)
+p_tidy_fixed_all
+
+# n25
+ggsave ("figures/n25/all_fixef.jpeg",
+        width = 4, height = 4)
+```
+
+
+## Visualise varying effects ##
+
+using posterior samples and tidybayes.
+
+## Variance at the group level ##
+
+intercept and effects across items and participants
+
+```{r}
+## varying effects of interest, including item, as well as participant and effects across pts
+tidy_vary <- post %>% 
+  select(contains("sd_")) %>% 
+  pivot_longer(everything()) %>% 
+  mutate(key = factor(name, levels=unique(name)),
+         group = if_else(str_detect(key, "item"), "item", "subj"),
+         term = if_else(str_detect(key, "Intercept") 
+                        & group == "item","item_intercept",
+                if_else(str_detect(key, "Intercept") 
+                        & group == "subj","subj_intercept",
+                if_else(str_detect(key, "cond") 
+                        & group == "item","item_condition", "subj_condition"))),
+         group = factor(group, levels=unique(group)),
+         term = factor(term, levels=unique(term))) 
+head(tidy_vary)
+tail(tidy_vary)
+
+check.vary <- tidy_vary %>% 
+  distinct(key, group, term)
+check.vary
+
+p_tidy_vary <- ggplot(tidy_vary, aes(x = value, y = fct_rev(term), fill=term)) +  
+  geom_vline(xintercept = 0, color = "grey", alpha = 5/10) +
+  stat_halfeye() +
+  labs(title = "SD plot for varying effects",
+       x = NULL, y = NULL) +
+  theme_bw() +
+  scale_fill_brewer(palette="Dark2") +
+  theme(panel.grid   = element_blank(),
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2), linetype = 3),
+        # axis.text.y  = element_blank(),
+        # axis.ticks.y = element_blank(),
+        legend.position = "none") +
+  coord_cartesian(xlim =c(0, 1.5)) +
+  scale_x_continuous(breaks=seq(0,1.5,0.5))
+p_tidy_vary
+
+ggsave ("figures/n25/varypp.jpeg")
+```
+
+## Variance within group levels i.e., at the individual item and participant level ##
+
+Note - this should be in a centred metric, so that deviation from the group 
+average (zero) can be visualised.
+
+## filter and wrangle varying effects within items and participants ##
+
+# item level #
+
+```{r}
+# item level
+# using post_summary (from posterior_summary)
+vary_item <- post_summary %>% 
+  data.frame() %>% 
+  rownames_to_column("param") %>% 
+  filter(str_detect(param, "r_item"),
+         str_detect(param, "cor", negate = TRUE)) %>% 
+  mutate(term = if_else(str_detect(param, "Intercept"), "item_intercept",
+                                   "item_condition"),
+         term = factor(term, levels = c("item_intercept", "item_condition"))) %>% 
+  arrange(term, Estimate) %>% 
+  mutate(rank = rep(1:4, times=2),
+         outlier = if_else(Q2.5 > 0 | Q97.5 < 0, "yes", "no"), 
+         outlier = factor(outlier, levels = c("no", "yes")))
+head(vary_item)
+```
+
+# participant level #
+
+```{r}
+vary_pt <- post_summary %>%
+  data.frame() %>% 
+  rownames_to_column("param") %>% 
+  filter(str_detect(param, "r_subj"),
+         str_detect(param, "cor", negate = TRUE)) %>% 
+  mutate(term = if_else(str_detect(param, "Intercept"), "subj_intercept", "subj_condition"),
+         term = factor(term, c("subj_intercept", "subj_condition"))) %>% 
+  arrange(term, Estimate) %>% 
+  mutate(rank = rep(1:25, times=2),
+         outlier = if_else(Q2.5 > 0 | Q97.5 < 0, "yes", "no"), 
+         outlier = factor(outlier, levels = c("no", "yes")))
+head(vary_pt)
+
+check.vary.pt <- vary_pt %>% 
+  distinct(term)
+check.vary.pt
+```
+
+# join item and pt varyvals together #
+
+```{r}
+tidy_varyvals <- vary_item %>% 
+  union(vary_pt) %>% 
+  mutate(term = factor(term, levels = unique(term)))
+head(tidy_varyvals)
+```
+
+# plot varying effects via caterpillar plots #
+
+```{r}
+p_tidy_varyvals <- ggplot(tidy_varyvals, aes(x=rank, y=Estimate, colour=outlier))+
+  geom_pointrange(aes(ymin=Q2.5,ymax=Q97.5),fatten = 0.5)+
+  geom_hline(yintercept=0, colour = "red")+
+  theme_bw()+
+  scale_colour_manual(values=c("darkgrey","black")) +
+  labs(title = "Varying effects by stimulus item and participant",
+       x = "stimulus item / participant")+
+  theme(axis.text.x  = element_blank())+
+  guides(colour = "none")+
+  facet_wrap(~term, scales = "free_x")
+p_tidy_varyvals
+
+ggsave ("figures/n25/varyvalspp.jpeg")
+```
+
+## posterior predictions ##
+
+use add_epred_draws from the tidybayes package
+
+We’ll use epred_draws() from tidybayes to plug in a hypothetical dataset and 
+generate predictions, as we did with previous models. Only this time, instead 
+of getting a single predicted value for each level of quota, we’ll get 4,000. 
+The epred_draws() (like all tidybayes functions) returns a long tidy data frame, 
+so it’s really easy to plot with ggplot:
+
+```{r}
+ame_bm1.4 <- data %>%
+  data_grid(subj, item, cond) %>%
+  add_epred_draws(bm1.4)
+head(ame_bm1.4)  
+
+ame_bm1.4 %>%
+  mutate(condition = if_else(cond == -0.5, "congr", "incon"),
+         condition = factor(condition, levels = c("congr", "incon"))) %>% 
+  group_by(condition) %>% 
+  median_hdi(.epred)
+```
+
+this above needs fixing - for some reason there are two cong conditions
+
+plot - when the above is fixed
+
+```{r}
+
+```
+
+
+we can also use compare levels in tidybayes to get the difference between these
+levels.
+
+```{r}
+diff_pred <- ame_bm1.4 %>% 
+  compare_levels(variable = .epred, by = cond)
+
+diff_pred %>%
+  group_by(cond) %>% 
+  median_hdi(.epred)
+
+ggplot(diff_pred, aes(x = .epred, y = cond)) +
+  stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi",
+               fill = "#bc3032") +
+  geom_vline(xintercept = 0) +
+  scale_y_discrete(labels = "incon - congr") +
+  labs(x = "Average marginal effect of congruency", 
+       y = NULL, caption = "80% and 95% credible intervals shown in black") +
+  theme_bw() 
+
+ggsave ("figures/n25/diff_preds.jpeg")
+```
+

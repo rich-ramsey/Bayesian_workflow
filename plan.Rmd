@@ -1,0 +1,804 @@
+---
+title: "plan"
+author: "Rich"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This file simulates a series of datasets and build models to estimate the likely
+(power and) precision of future experiments. It is one way to plan sample sizes,
+for example.
+
+## load the libraries that we will be using ## 
+
+## install ##
+
+```{r install-pkg}
+# install.packages("remotes")
+# remotes::install_github("stan-dev/cmdstanr")
+# 
+# install.packages("devtools")
+# devtools::install_github("jmgirard/standist")
+# 
+# install.packages(c("tidyverse", "RColorBrewer", "patchwork", "brms",
+#                    "tidybayes", "bayesplot", "patchwork", "future", "faux"))
+```
+
+take a snapshot of loaded packages and update the lock.file using renv
+
+```{r snapshot-renv}
+# take a snapshot and update the lock.file
+# renv::snapshot() # this is only necessary when new packages or installed or packages are updated.
+```
+
+## load ##
+
+```{r load-pkg}
+pkg <- c("cmdstanr", "standist", "tidyverse", "RColorBrewer", "patchwork", 
+         "brms", "tidybayes", "bayesplot", "future", "parallel", "faux")
+
+lapply(pkg, library, character.only = TRUE)
+```
+
+## settings ##
+
+```{r set-options}
+options(brms.backend = "cmdstanr",
+        mc.cores = parallel::detectCores(),
+        future.fork.enable = TRUE,
+        future.rng.onMisuse = "ignore") ## automatically set in RStudio
+
+supportsMulticore()
+
+detectCores()
+```
+
+
+The overall Bayesian workflow will be split up into several sections, as follows:
+
+1. prior predictions.
+2. planning for power/precision via simulation.
+3. build a series of models and perform model checking and model comparison.
+4. evaluate the posterior.
+
+This script is part (2) above. 
+
+## section 1 - create some initial data ##
+
+load the data if previously generated in the prior.Rmd script.
+
+This is the more complex and realistic dataset
+
+```{r}
+d <- read_csv("data/d2.csv")
+head(d)
+str(d)
+```
+
+take a look 
+
+density plot
+
+```{r}
+ggplot(d, aes(x=rt, fill=condition)) +
+   geom_density(alpha = 0.3, colour = "darkgrey") +
+   scale_fill_brewer(palette = "Dark2")+
+   theme_bw()+
+   theme(panel.grid = element_blank()) +
+   theme(legend.position = "none") +
+   ggtitle("rt by condition")
+# ggsave ("figures/density.jpeg")
+```
+
+That's great as it is in original units (rt). However, I've found it useful when
+planning sample sizes and things to think in original units AND standardised 
+units. So, the general idea would be what kind of data would we expect in terms of 
+rt for this task (e.g., ~500ms, ~600ms, ~2000ms). And what kinds of effect sizes 
+would we expect for manipulations of interest in original units (e.g., 10ms, 50ms,
+100ms) and also standardised units (e.g., 0.2, 0.5 etc.). I think the value of this
+is that it is quite easy to think that for most of psychology (with a few exceptions)
+standardised effect sizes >1 would be rare. 0.2-0.5 would be far more common.
+See here for a great paper on this topic: https://journals.sagepub.com/doi/full/10.1177/2515245919847202
+
+The upshot would be that if we wanted to simulate a range of effect sizes to see
+how precision or power might change, it could be kind of trivial if we think in
+standardised units. This is because in standardised units, I may just pick 3 options,
+which all might be reasonable. e.g., a difference of 0.25, 0.5 and 0.75. For much
+of psychology, a standardised effect of 0.75 would be probably way too big and 
+an unreasonable choice, even for a simulation. But, for congruency effects in
+rt, it is not that uncommon. The choice would need titrating to the domain in
+question.
+
+On this basis, therefore, we may want to simulate data using a dv that is in a 
+centred and standardised metric, so that we can more easily plug in standardised 
+effect sizes to simulate. Of course, we could always convert that back into the
+original metric to see what a effect size of 0.5 (or whatever) would look like
+in rt.
+
+so let's create the data in a centred metric and standardised metric.
+
+ideally, if we have similar prior data (not necessarily the same design), we could
+use that to guide estimates for how much variation in intercepts and slopes
+we might expect in terms of SD. Here, I just picked items to be half the variation
+as participants, as that seems like a very common and general trend in this kind
+of work that items vary less than participants.
+
+And I've chosen to reduce the number of items and repeats, so that the datasets
+are smaller and therefore the models will take less time to build. e.g., if each 
+model takes 3 minutes to build and you want to simulate 1000 reps per variable 
+manipulated that could take a long time. And it might be a good use of time for 
+real planning, but this is just a demonstration, so there's no need for that.
+
+In short, I reduced the dataset from a total of 8000 observations for 25 
+participants to XXX observations. 64 observations per pid with 50% congr and 50%
+incon. We would typically use more trials than this, especially if we had a nested
+multi-level structure. But nonetheless, this might be a fine place to start as a 
+way to get a sense of what to expect in terms of precision.
+
+```{r}
+# make it reproducible
+set.seed(1)
+
+# define parameters
+subj_n = 25  # number of subjects
+item_n = 4  # number of items (4 faces x 2 repeats (half gaze left))
+rep_n = 4 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
+b0 = 0      # intercept
+b1 = 0.5      # fixed effect of condition
+u0s_sd = 1   # random intercept SD for subjects
+u1s_sd = 0.5   # random b1 slope SD for subjects
+u0i_sd = 0.5   # random intercept SD for items
+u1i_sd = 0.25   # random b1 slope SD for items
+r01s = 0.3   # correlation between random effects 0 and 1 for subjects
+r01i = 0.3   # correlation between random effects 0 and 1 for items
+sigma_sd = 2 # error SD
+
+# set up data structure
+ds <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
+  # add and recode categorical variables
+  add_within("item", gaze = c("left", "right")) %>%
+  add_within("subj", condition = c("congr", "incong")) %>%
+  add_contrast("condition", "anova", add_cols = TRUE, colnames = "cond") %>%
+  # add random effects
+  add_ranef("subj", u0s = u0s_sd, u1s = u1s_sd, .cors = r01s) %>%
+  add_ranef("item", u0i = u0i_sd, u1i = u1i_sd, .cors = r01i) %>%
+  add_ranef(sigma = sigma_sd) %>%
+  # calculate DV
+  mutate(rt = b0 + u0s + u0i + (b1 + u1s + u1i) * cond + sigma)
+
+head(ds)
+str(ds)
+summary(ds)
+```
+
+density plot
+
+```{r}
+ggplot(ds, aes(x=rt, fill=condition)) +
+   geom_density(alpha = 0.3, colour = "darkgrey") +
+   scale_fill_brewer(palette = "Dark2")+
+   theme_bw()+
+   theme(panel.grid = element_blank()) +
+   theme(legend.position = "bottom") +
+   ggtitle("rt by condition")
+# ggsave ("figures/density.jpeg")
+```
+
+
+## section 2 - fit an initial model ##
+
+read in a fit, if already computed
+
+```{r}
+# fit <- readRDS("models/fit.rds")
+# summary(fit)
+```
+
+
+formula
+
+```{r}
+formula = bf(rt ~ 1 + cond + 
+               (1 + cond | subj) +
+               (1 | item)) 
+```
+
+check priors
+
+```{r}
+get_prior(data = ds,
+          family = gaussian,
+          formula)
+```
+
+visualise prior settings in standarised units
+
+```{r}
+visualize("normal(0, 0.5)", "normal(0, 1)", "normal(0, 2)", 
+          xlim = c(-4, 4))
+```
+
+ok, (0, 0.5) seems sensible for the slope (b). And (0,1) for the intercept.
+
+Both minimise the focus on what would be unusually extreme values.
+
+set priors
+
+```{r}
+priors <- c(
+  set_prior("normal(0, 1)", class = "Intercept"),
+  set_prior("normal(0, 0.5)", class = "b"),
+  set_prior("normal(0, 0.5)", class = "sigma"),
+  set_prior('normal(0, 0.5)', class = 'sd'),
+  set_prior("lkj(2)", class = "cor") # correlation between varying effects log-units
+)
+```
+
+fit the model
+
+```{r}
+# check the time to see how long it takes
+t1 <- Sys.time()
+
+fit <-
+  brm(data = ds,
+      family = gaussian,
+      formula = formula,
+      prior = priors,
+      seed = 1,
+      cores = 20)
+summary(fit)
+
+t2 <- Sys.time()
+
+t2 - t1
+
+# Time difference 41 secs - macbook, quad-core blah blah 
+# Time difference 31 secs - imac, 10/20-core blah blah 
+```
+
+if there were a few divergent transitions (out of 4000), I would not 
+worry about this at this point because we would normally have way more data
+and we could set up change control parameters and run more iterations for the real
+thing, if that's what it needed.
+
+let's take a look 
+
+```{r}
+# chains
+plot(fit)
+# summary
+print(fit)
+# fixed effects
+fixef(fit)
+
+# save initial fit
+saveRDS(fit, "models/fit.rds")
+```
+
+update the fit and check the time taken (this is unnecessary, but just to see the time difference, which is large)
+
+```{r}
+set.seed(2)
+# 
+ds2 <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
+  # add and recode categorical variables
+  add_within("item", gaze = c("left", "right")) %>%
+  add_within("subj", condition = c("congr", "incong")) %>%
+  add_contrast("condition", "anova", add_cols = TRUE, colnames = "cond") %>%
+  # add random effects
+  add_ranef("subj", u0s = u0s_sd, u1s = u1s_sd, .cors = r01s) %>%
+  add_ranef("item", u0i = u0i_sd, u1i = u1i_sd, .cors = r01i) %>%
+  add_ranef(sigma = sigma_sd) %>%
+  # calculate DV
+  mutate(rt = b0 + u0s + u0i + (b1 + u1s + u1i) * cond + sigma)
+
+t1 <- Sys.time()
+
+plan(multicore)
+updated_fit <-
+  update(fit,
+         newdata = ds2,
+         seed = 2,
+         cores = 20)
+
+t2 <- Sys.time()
+
+t2 - t1
+
+# Time difference 12 secs - macbook. it will be quicker on my imac but I'm yet to test it.
+# Time difference 11 secs - imac.
+```
+
+take a look
+
+```{r}
+summary(updated_fit)
+```
+
+looks good. no complaints from stan.
+
+## section 3 - create a function to simulate multiple datasets ##
+
+```{r}
+sim <- function(subj_n = 25, item_n = 4, rep_n = 4,  # these can be changed when calling the function
+                b0 = 0, b1 = 0.5,         # fixed effects 
+                u0s_sd = 1, u0i_sd = 0.5,   # random intercepts subj and item
+                u1s_sd = 0.5, u1i_sd = 0.25,   # random slope subj and item
+                r01s = 0.3, r01i = 0.3,   # cor
+                sigma_sd = 2,           # error term
+                ... # helps the function work with pmap() below
+                ) {
+
+  # set up data structure
+  data <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
+  # add and recode categorical variables
+  add_within("item", gaze = c("left", "right")) %>%
+  add_within("subj", condition = c("congr", "incong")) %>%
+  add_contrast("condition", "anova", add_cols = TRUE, colnames = "cond") %>%
+  # add random effects
+  add_ranef("subj", u0s = u0s_sd, u1s = u1s_sd, .cors = r01s) %>%
+  add_ranef("item", u0i = u0i_sd, u1i = u1i_sd, .cors = r01i) %>%
+  add_ranef(sigma = sigma_sd) %>%
+  # calculate DV
+  mutate(rt = b0 + u0s + u0i + (b1 + u1s + u1i) * cond + sigma)
+  
+  # glimpse(data) # only use this when testing the code
+}
+
+```
+
+Here’s a quick example of how our function works. You can change these parameters
+and create some different data.
+
+```{r}
+sim(subj_n = 25, item_n = 4, b0 = 0, b1 = 0.5) # if you uncomment glimpse above,
+# it will let you glimpse the data that's generated. this is useful for checking / testing code purposes.
+```
+
+## section 4 - run the simulations and iterate through variables ##
+
+Here we just run 100 replicates because this is a demo. For the real thing, 
+something more like 1000 replicates would be more appropriate.
+
+## keep the data and model objects ##
+
+this version keeps all the data and models (but sucks up memory), so it is mainly
+good for testing the code and checking the output rather than the real thing.
+
+```{r}
+x <- crossing(
+  exp = 1:2, # number of experiment replicates
+  subj_n = c(25, 50), # range of subject N
+  b0 = 0, # fixed intercept
+  b1 = c(0.25, 0.5), # range of effects
+) %>%
+  mutate(d = pmap(., sim)) %>%
+  mutate(fit = map2(d, exp, ~update(fit, newdata = .x, seed = .y)))
+
+```
+
+let's take a look
+
+```{r}
+head(x)
+```
+
+unnest to expand the data, for example.
+
+```{r}
+sim_dat <-
+  x %>% 
+  unnest(d)
+head(sim_dat)
+```
+
+## only keep the parameter summaries ##
+
+this version does not keep data or model objects, but just keeps the model summaries 
+for fixed effects. This is probably what you want to run when you scale-up the sims.
+The previous version is useful for testing purposes though e.g., to see if the
+data look right when you cycle through a few iterations.
+
+```{r}
+t1 <- Sys.time()
+
+plan(multicore)
+x <- crossing(
+  exp = 1:100, # number of experiment replicates
+  subj_n = c(25, 50, 75), # range of subject N
+  b0 = 0, # fixed intercept
+  b1 = c(0.25, 0.5, .75), # range of effects
+) %>%
+  mutate(d = pmap(., sim)) %>%
+  mutate(fit = map2(d, exp, ~update(fit, newdata = .x, seed = .y) %>% # this is the new bit
+                     fixef() %>% 
+                     data.frame() %>% 
+                     rownames_to_column("parameter"))) %>% 
+  select(-d) # this removes the data from the stored tibble 'x'
+
+t2 <- Sys.time()
+
+t2 - t1 
+
+# Time difference 12 mins for 2 exp reps? - macbook.  (12 mins per 2 sims x 50 = 10 hrs for 100 sims; 
+# 100 hrs for 1000 sims. ~ 4 days). So kick it off over the weekend and go get a
+# beer.
+
+# Time difference 8 mins for 2 exp reps? - imac  (8 mins per 2 sims x 50 = 6.67 hrs for 100 sims; 
+# 67 hrs for 1000 sims. ~ 4 days). So still time for a beer.
+```
+
+let's take a quick look
+
+```{r}
+head(x)
+```
+
+## section 5 - take a look at the output ##
+
+select parameters of interest to summarise and visualise
+
+```{r}
+parameters <-
+  x %>% 
+  unnest(fit)
+head(parameters)
+```
+
+save out parameters
+
+```{r}
+# save the parameters
+write_csv(parameters, "data/sim_p.csv")
+```
+
+alternatively, read in saved parameters, if they've already been computed and saved.
+
+```{r}
+# parameters <- read_csv("data/sim_p.csv") 
+# head(parameters)
+```
+
+q quick summary plot using tidybayes, just to see what the distributions
+look like (e.g., do they hit the simulated target values, on average, as they 
+should?)
+
+let's first calculate some summaries
+
+```{r}
+# all fixed effects
+param_qi <- parameters %>%
+  group_by(subj_n, b1, parameter) %>% 
+  median_qi(Estimate)
+head(param_qi)
+
+# save it
+write_csv(param_qi, "data/param_qi.csv")
+```
+
+ok, at this point, you would check to see that the intervals cover the right 
+values per parameter, on average across the sims.
+
+and now let's plot to make it easier to see.
+
+first, wrangle to make factors
+
+```{r}
+parameters <- parameters %>% 
+  mutate(subj_n = factor(subj_n, levels = c("25", "50", "75")),
+         b1 = factor(b1, levels = c("0.25", "0.5", "0.75")),
+         parameter = factor(parameter, levels = c("Intercept", "cond")))
+head(parameters)
+```
+
+and now plot
+
+I only focus on the effect size here and not the sample size. This is just to
+get a sense that the effects are in the right place.
+
+```{r}
+p_fixed <- ggplot(parameters, aes(x = Estimate, y = fct_rev(parameter), 
+                                   fill=parameter)) +  
+  geom_vline(xintercept = 0, color = "grey", alpha = 5/10) +
+  stat_halfeye() +
+  labs(title = "Avg. simulated coefficient plot for fixed effects (predictors)",
+       x = NULL, y = NULL) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(panel.grid   = element_blank(),
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2), linetype = 3),
+        axis.text.y  = element_text(hjust = 0),
+        axis.ticks.y = element_blank(),
+        legend.position = "none") +
+  coord_cartesian(xlim =c(-1, 1)) +
+  scale_x_continuous(breaks=seq(-1,1,0.25)) +
+  facet_wrap(~b1)
+p_fixed
+
+ggsave ("figures/sim_fixef.jpeg",
+        width = 5, height = 4)
+```
+
+
+## section 6 - calculate power i.e., % Q2.5 > 0 ##
+
+Of course, statistical power is not Bayesian thing. But I calculate it here just
+to show a contact point for something that is likely more familiar to folks.
+
+```{r}
+power <- parameters %>% 
+  filter(parameter == "cond") %>%
+  group_by(subj_n, b1) %>% 
+  mutate(check = ifelse(Q2.5 > 0, 1, 0)) %>% 
+  summarise(power = mean(check)) 
+power
+```
+
+plot power
+
+```{r}
+p_power <- ggplot(power, aes(x = b1, y = subj_n, fill = power)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.3f", power)), color = "white", size = 10) +
+  scale_fill_viridis_c(limits = c(0, 1)) 
+p_power
+# 
+ggsave ("figures/power.jpeg")
+```
+
+plot parameters and include power as a text label
+
+wrangle
+
+```{r}
+plot_params <- parameters %>%
+  filter(parameter == "cond") %>%
+  mutate(below_zero = if_else(Q2.5 < 0, "yes", "no"), 
+         below_zero = factor(below_zero, levels = c("no", "yes"))) %>% 
+  inner_join(power, by = c("subj_n", "b1")) %>% 
+  mutate(power = round(power * 100, 3)) 
+head(plot_params)
+```
+
+plot
+
+```{r}
+p_params <- plot_params %>%
+  ggplot(aes(x = exp, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
+  geom_pointrange(fatten = 1/2, aes(colour=below_zero)) +
+  geom_hline(yintercept = 0, colour = "red") +
+  # geom_hline(aes(yintercept = b1), colour = "blue") + # this would add a line at b1 - the target effect size
+  scale_colour_manual(values=c("darkgrey","black")) +
+  geom_text(aes(x=75, y=-0.1,
+                label = sprintf("%.1f%s", power, "% power")), color = "darkgrey", size = 4) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "sim exp # (i.e., simulation index)",
+       y = expression(beta[1](condition))) +
+  facet_grid(fct_rev(subj_n) ~ b1) 
+p_params
+
+ggsave ("figures/parameters.jpeg",
+        width = 5, height = 4)
+```
+
+## section 7 - calculate interval widths and precision, rather than NHST and power ##
+
+This has XX sims per 3 Ns and 3 b1s. What's nice about this approach is that 
+without sweating blood to think about what widths to come up with, we can just 
+simulate a range of reasonable/feasible sample sizes and effect sizes. 
+We already know a lot about both of these, given the practical and financial 
+constraints of the type of data collections and effect sizes in psychology,
+which tend to be small. So it might be a good way to go initially to get a sense.
+
+## load in the saved parameters if necessary ##
+
+```{r}
+# parameters <- read_csv("data/sim_p.csv") 
+# head(parameters)
+```
+
+## we might evaluate "power" by widths ##
+
+Instead of just ordering the point-ranges by their seed values, we might 
+instead arrange them by the lower levels.
+
+```{r}
+# wrangle to order by Q2.5
+plot_w <- parameters %>%
+  filter(parameter == "cond") %>% 
+  arrange(subj_n, b1, Q2.5) %>%
+  mutate(rank = rep(1:2, times=9)) # XX reps per 9 variations (3 subj_n * 3 b1)
+head(plot_w)
+str(plot_w)
+
+# plot
+p_q2.5 <- plot_w %>%
+  ggplot(aes(x = rank, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
+  geom_pointrange(fatten = 1/2) +
+  geom_hline(aes(yintercept = b0), colour = "red") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_x_discrete("reordered by the lower level of the 95% intervals", breaks = NULL) +
+  ylab(expression(beta[1])) +
+  facet_grid(fct_rev(subj_n) ~ b1)
+p_q2.5
+
+ggsave("figures/params_by_Q2.5.jpeg")
+```
+
+Notice how this arrangement highlights the differences in widths among the 
+intervals. The wider the interval, the less precise the estimate. Some intervals
+were wider than others, but all tended to hover in a similar range. We might 
+quantify those ranges by computing a width variable.
+
+```{r}
+plot_w <-
+  plot_w %>% 
+  mutate(width = Q97.5 - Q2.5)
+
+head(plot_w)
+```
+
+Here’s the width distribution.
+
+```{r}
+p_hist <- plot_w %>% 
+  ggplot(aes(x = width)) +
+  geom_histogram(binwidth = .01) +
+  geom_rug(linewidth = 1/6) +
+  facet_grid(fct_rev(subj_n) ~ b1)
+p_hist
+
+ggsave("figures/width_hist.jpeg")
+```
+
+now re-plot but only by sample size.
+
+```{r}
+# using a facet for sample size
+p_hist_n <- plot_w %>%
+  ggplot(aes(x = width, fill = subj_n)) +
+  geom_histogram(binwidth = .01) +
+  geom_rug(linewidth = 1/6) +
+  facet_wrap(~subj_n)
+p_hist_n
+
+ggsave("figures/width_hist_n.jpeg")
+
+
+# overlaying sample size dists
+p_hist_n2 <- plot_w %>%
+  ggplot(aes(x = width, fill = subj_n, colour = subj_n)) +
+  geom_histogram(binwidth = .01, position = 'identity', alpha = 0.7) +
+  geom_rug(linewidth = 1/6) +
+  scale_fill_discrete(breaks=c('75', '50', '25')) +
+  scale_colour_discrete(breaks="none") +
+  theme_bw() +
+  theme(legend.position = "bottom") + 
+  scale_x_continuous(breaks = seq(0.4, 1.1, 0.1)) +
+  ggtitle("95% interval widths by simulated sample size")
+p_hist_n2
+
+ggsave("figures/width_hist_n2.jpeg")
+```
+
+Take a random sample of the sims to look at a few...
+
+```{r}
+set.seed(123)
+
+sample10 <- plot_w %>%
+  group_by(subj_n, b1) %>% 
+  sample_n(2) %>% # change this to 10 to select 10 exps randomly
+  mutate(exp = exp %>% as.character()) %>%
+
+  ggplot(aes(x = Estimate, xmin = Q2.5, xmax = Q97.5, y = exp, 
+             colour = subj_n)) +
+  geom_vline(xintercept = c(0, .5), color = "white") +
+  geom_pointrange() +
+  labs(x = expression(beta[1]),
+       y = "exp rep #") +
+  scale_x_continuous(breaks = seq(-.25, 1.25, 0.25), 
+                     limits = c(-0.25, 1.25)) +
+  facet_grid(fct_rev(subj_n)~b1) +
+  theme_bw()
+sample10
+
+ggsave("figures/sample10.jpeg",
+       width = 5, height = 4)
+```
+
+So instead of focusing on rejecting a null hypothesis, we might instead use our 
+simulation skills to determine the sample size we need to have most of our 95% 
+intervals come in at a certain level of precision. This has been termed the 
+accuracy in parameter estimation [AIPE; Maxwell et al. ( 2008); see also 
+Kruschke ( 2015)] approach to sample size planning.
+
+Thinking in terms of AIPE, in terms of precision, let’s say we wanted widths 
+of 0.7, 0.6, 0.5 or smaller. Here’s how we did with our sims.
+
+```{r}
+plot_w %>%
+  group_by(subj_n, b1) %>% 
+  mutate(below_05 = if_else(width < .5, 1, 0),
+         below_04 = if_else(width < .4, 1, 0),
+         below_03 = if_else(width < .3, 1, 0)) %>% 
+  summarise(power_05 = mean(below_05),
+            power_04 = mean(below_04),
+            power_03 = mean(below_03))
+
+#  subj_n b1    power_05 power_04 power_03
+#   <fct>  <fct>    <dbl>    <dbl>    <dbl>
+# 1 25     0.25       1        0        0  
+# 2 25     0.5        0.5      0        0  
+# 3 25     0.75       0.5      0        0  
+# 4 50     0.25       1        0.5      0  
+# 5 50     0.5        1        1        0  
+# 6 50     0.75       1        0.5      0  
+# 7 75     0.25       1        1        0  
+# 8 75     0.5        1        1        0.5
+# 9 75     0.75       1        1        0  
+```
+
+ok, at N=XX, widths < XXX look good-ish (e.g., > 80%). Terrible at .3
+
+Our simulation suggests we have about a XX% probability of achieving 95% CI 
+widths of XX or smaller with n=XX.
+
+
+The .8 criterion would give our AIPE analyses a sense of familiarity with 
+traditional power analyses, which some reviewers might appreciate. But in his 
+text, Kruschke mentioned several other alternatives. One would be to set maximum 
+value for our CI widths and simulate to find the nn necessary so all our 
+simulations pass that criterion. Another would follow Joseph, Wolfson, and 
+du Berger ( 1995, 1995), who suggested we shoot for an N that produces widths 
+that pass that criterion on average. Here’s how we did based on the 
+average-width criterion.
+
+```{r}
+plot_w %>%
+  group_by(subj_n, b1) %>%
+  summarise(avg_width = mean(width))
+
+# subj_n b1    avg_width
+#   <fct>  <fct>     <dbl>
+# 1 25     0.25      0.433
+# 2 25     0.5       0.546
+# 3 25     0.75      0.528
+# 4 50     0.25      0.401
+# 5 50     0.5       0.355
+# 6 50     0.75      0.402
+# 7 75     0.25      0.355
+# 8 75     0.5       0.333
+# 9 75     0.75      0.344
+```
+
+ok, so the averages are pretty good? The closer to 0.4 the better.
+That would mean that an effect of 0.5 could be distinguished consistently from 
+0.3 and 0.7. But all of these effect sizes are a little arbitrary, so what the bother?
+
+I guess the bother is less about being "sure" of something in the future and more
+about guiding what you could reasonably expect from an experiment based on the
+assumptions and domain knowledge that have gone into these simulations. e.g., 
+with a given N, how precise would our estimates be? And what other effect sizes
+would be likely to be able to rule-out? This means this is no longer about clearing
+zero, but it is instead about guiding expectations about likely precision. 
+
+e.g., with N=50, we can be reasonably confident that could distinguish an effect of
+0.5 from 0.3 and 0.7. Why that might be useful or important would entirely 
+depend on domain knowledge and the context. In this case, it is for basic 
+research and understanding, so there is no immediate applied context or real-world
+relevance. It is more important to as a consideration for resource use, efficiency
+and the precision of the inference. 
+
+But in another, more applied context, it might be really important to clear smaller
+effect sizes (like 0.2 or 0.3) because you might not run an intervention at scale
+if that were the case or continue drug development or whatever else. 
