@@ -58,13 +58,13 @@ detectCores()
 Read in the models.
 
 ```{r}
-bm0 <- readRDS("models/n25/bm0.rds")
-bm1 <- readRDS("models/n25/bm1.rds")
-bm1.1 <- readRDS("models/n25/bm1.1.rds")
-bm1.2 <- readRDS("models/n25/bm1.2.rds")
-bm1.3 <- readRDS("models/n25/bm1.3.rds")
+bm0 <- readRDS("models/n50/bm0.rds")
+bm1 <- readRDS("models/n50/bm1.rds")
+bm1.1 <- readRDS("models/n50/bm1.1.rds")
+bm1.2 <- readRDS("models/n50/bm1.2.rds")
+bm1.3 <- readRDS("models/n50/bm1.3.rds")
 ## the full model
-bm1.4 <- readRDS("models/n25/bm1.4.rds")
+bm1.4 <- readRDS("models/n50/bm1.4.rds")
 ```
 
 now read in the posterior predictions, if available.
@@ -76,7 +76,7 @@ now read in the posterior predictions, if available.
 ## read in the data ##
 
 ```{r}
-data <- read_csv("data/n25/data.csv")
+data <- read_csv("data/n50/data.csv")
 head(data)
 ```
 
@@ -174,8 +174,8 @@ p_tidy_fixed <- ggplot(tidy_fixed, aes(x = value, y = fct_rev(term), fill=term))
   scale_x_continuous(breaks=seq(-1, 1, 0.25))
 p_tidy_fixed
 
-# n25
-ggsave ("figures/n25/bm1.4_fixef.jpeg")
+# n50
+ggsave ("figures/n50/bm1.4_fixef.jpeg")
 ```
 
 ## make a table of fixed effects ##
@@ -192,7 +192,7 @@ fix_tab
 tab_df(fix_tab,
        alternate.rows = T,
        title="Fixed effects",
-       file="tables/n25/bm1.4_fixed.doc")
+       file="tables/n50/bm1.4_fixed.doc")
 ```
 
 ## plot the effect of condition across the different models ##
@@ -237,8 +237,8 @@ p_tidy_fixed_all <- ggplot(tidy_fixed_all, aes(x = value, y = model, fill=term))
   facet_wrap(~term)
 p_tidy_fixed_all
 
-# n25
-ggsave ("figures/n25/all_fixef.jpeg",
+# n50
+ggsave ("figures/n50/all_fixef.jpeg",
         width = 4, height = 4)
 ```
 
@@ -289,7 +289,7 @@ p_tidy_vary <- ggplot(tidy_vary, aes(x = value, y = fct_rev(term), fill=term)) +
   scale_x_continuous(breaks=seq(0,1.5,0.5))
 p_tidy_vary
 
-ggsave ("figures/n25/varypp.jpeg")
+ggsave ("figures/n50/varypp.jpeg")
 ```
 
 ## Variance within group levels i.e., at the individual item and participant level ##
@@ -330,7 +330,7 @@ vary_pt <- post_summary %>%
   mutate(term = if_else(str_detect(param, "Intercept"), "subj_intercept", "subj_condition"),
          term = factor(term, c("subj_intercept", "subj_condition"))) %>% 
   arrange(term, Estimate) %>% 
-  mutate(rank = rep(1:25, times=2),
+  mutate(rank = rep(1:50, times=2),
          outlier = if_else(Q2.5 > 0 | Q97.5 < 0, "yes", "no"), 
          outlier = factor(outlier, levels = c("no", "yes")))
 head(vary_pt)
@@ -364,7 +364,7 @@ p_tidy_varyvals <- ggplot(tidy_varyvals, aes(x=rank, y=Estimate, colour=outlier)
   facet_wrap(~term, scales = "free_x")
 p_tidy_varyvals
 
-ggsave ("figures/n25/varyvalspp.jpeg")
+ggsave ("figures/n50/varyvalspp.jpeg")
 ```
 
 ## posterior predictions ##
@@ -380,24 +380,36 @@ so it’s really easy to plot with ggplot:
 ```{r}
 ame_bm1.4 <- data %>%
   data_grid(subj, item, cond) %>%
-  add_epred_draws(bm1.4)
+  add_epred_draws(bm1.4, ndraws = 4000) %>% 
+  mutate(condition = if_else(cond == -0.5, "congr", "icong"), ## this is just helpful for plotting
+         condition = factor(condition))
 head(ame_bm1.4)  
 
+## save out the preds
+write_csv(ame_bm1.4, "data/n50/p_preds.csv")
+
 ame_bm1.4 %>%
-  mutate(condition = if_else(cond == -0.5, "congr", "incon"),
-         condition = factor(condition, levels = c("congr", "incon"))) %>% 
+  # mutate(condition = if_else(cond == -0.5, "congr", "incon"),
+  #        condition = factor(condition, levels = c("congr", "incon"))) %>% 
   group_by(condition) %>% 
   median_hdi(.epred)
 ```
 
-this above needs fixing - for some reason there are two cong conditions
-
-plot - when the above is fixed
+plot
 
 ```{r}
+p_preds <- ggplot(ame_bm1.4, aes(x = .epred, y = condition, fill = condition)) +
+  stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
+  scale_x_continuous() +
+  labs(x = "Average marginal effect of condition on rt", 
+       y = NULL,
+       caption = "80% and 95% credible intervals shown in black") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+p_preds
 
+ggsave ("figures/n50/preds.jpeg")
 ```
-
 
 we can also use compare levels in tidybayes to get the difference between these
 levels.
@@ -419,6 +431,6 @@ ggplot(diff_pred, aes(x = .epred, y = cond)) +
        y = NULL, caption = "80% and 95% credible intervals shown in black") +
   theme_bw() 
 
-ggsave ("figures/n25/diff_preds.jpeg")
+ggsave ("figures/n50/diff_preds.jpeg")
 ```
 

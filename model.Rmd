@@ -11,7 +11,8 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This file builds a series of Bayesian regression models, performs model checks and model comparisons.
+This file builds a series of Bayesian regression models, performs model checks 
+and model comparisons.
 
 ## load the libraries that we will be using ## 
 
@@ -78,12 +79,16 @@ previously simulated and saved data.
 
 we'll just simulate for now.
 
+And based on the plan.Rmd script, we are going to simulate data with N=50 because
+that seemed to reach an acceptable level of power (95%) and precision with an 
+interval width < 0.4.
+
 ```{r}
 # make it reproducible
 set.seed(1)
 
 # define parameters
-subj_n = 25  # number of subjects
+subj_n = 50  # number of subjects
 item_n = 4  # number of items (4 faces x 2 repeats (half gaze left))
 rep_n = 4 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
 b0 = 0      # intercept
@@ -114,8 +119,8 @@ str(data)
 summary(data)
 
 # save out the data
-# 25p data, for example
-write_csv(data, "data/n25/data.csv")
+# 50p data, for example
+write_csv(data, "data/n50/data.csv")
 ```
 
 density plot
@@ -180,10 +185,10 @@ plan(multicore)
 bm0 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm0")
+        file = "models/n50/bm0")
 summary(bm0)
 ```
 
@@ -246,10 +251,10 @@ plan(multicore)
 bm1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm1")
+        file = "models/n50/bm1")
 summary(bm1)
 ```
 
@@ -307,10 +312,10 @@ plan(multicore)
 bm1.1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm1.1")
+        file = "models/n50/bm1.1")
 summary(bm1.1)
 ```
 
@@ -365,10 +370,10 @@ plan(multicore)
 bm1.2 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm1.2")
+        file = "models/n50/bm1.2")
 summary(bm1.2)
 ```
 
@@ -428,12 +433,16 @@ plan(multicore)
 bm1.3 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.95),
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm1.3")
+        file = "models/n50/bm1.3")
 summary(bm1.3)
 ```
+
+1 divergent transition initially (of 4000), so I increased adapt_delta using the
+control parameter as the warning suggested, see the above code chunk.
 
 ## take a look ##
 
@@ -489,10 +498,11 @@ plan(multicore)
 bm1.4 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 8, chains = 4,
+        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.95),
         save_pars = save_pars(all=TRUE),
         seed = 123,
-        file = "models/bm1.4")
+        file = "models/n50/bm1.4")
 summary(bm1.4)
 ```
 
@@ -541,7 +551,7 @@ p_chains <- chains %>%
 p_chains
 
 # save it
-ggsave ("figures/bm1.4_chains.jpeg",
+ggsave ("figures/n50/bm1.4_chains.jpeg",
         width = 20, height = 13, units = "in", dpi = 300)
 ```
 
@@ -559,7 +569,7 @@ bm1.4_rhat
 # 
 bm1.4_diag <- bm1.4_neff / bm1.4_rhat
 bm1.4_diag
-ggsave("figures/bm1.4_diag.jpeg")
+ggsave("figures/n50/bm1.4_diag.jpeg")
 ```
 
 
@@ -629,5 +639,5 @@ l_plot <-  ggplot(l_dat) +
   theme(legend.position = "none")
 l_plot
 
-ggsave("figures/loo_plot.jpeg", width = 6, height = 2)
+ggsave("figures/n50/loo_plot.jpeg", width = 6, height = 2)
 ```
