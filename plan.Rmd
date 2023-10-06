@@ -15,6 +15,12 @@ This file simulates a series of datasets and build models to estimate the likely
 (power and) precision of future experiments. It is one way to plan sample sizes,
 for example.
 
+The simulation pipeline below was largely inspired by the work of two people:
+
+1) Solomon Kurz's power blog: https://solomonkurz.netlify.app/tags/power/
+
+2) Lisa DeBruine's faux package: https://debruine.github.io/faux/
+
 ## load the libraries that we will be using ## 
 
 ## install ##
@@ -455,14 +461,14 @@ head(parameters)
 save out parameters
 
 ```{r}
-# save the parameters
-write_csv(parameters, "data/sim_p.csv")
+## save the parameters
+# write_csv(parameters, "data/sim_p_x100.csv")
 ```
 
 alternatively, read in saved parameters, if they've already been computed and saved.
 
 ```{r}
-# parameters <- read_csv("data/sim_p.csv") 
+# parameters <- read_csv("data/sim_p_x100.csv") 
 # head(parameters)
 ```
 
@@ -480,13 +486,14 @@ param_qi <- parameters %>%
 head(param_qi)
 
 # save it
-write_csv(param_qi, "data/param_qi.csv")
+write_csv(param_qi, "data/param_qi_x100.csv")
 ```
 
 ok, at this point, you would check to see that the intervals cover the right 
 values per parameter, on average across the sims.
 
-and now let's plot to make it easier to see.
+and now let's plot to make it easier to see these values, rather than read them
+in a table.
 
 first, wrangle to make factors
 
@@ -504,12 +511,12 @@ I only focus on the effect size here and not the sample size. This is just to
 get a sense that the effects are in the right place.
 
 ```{r}
-p_fixed <- ggplot(parameters, aes(x = Estimate, y = fct_rev(parameter), 
-                                   fill=parameter)) +  
-  geom_vline(xintercept = 0, color = "grey", alpha = 5/10) +
+p_fixed <- ggplot(parameters, aes(x = Estimate, y = b1, 
+                                   fill=b1)) +  
+  geom_vline(xintercept = seq(0, 0.75, 0.25), color = "grey", alpha = 5/10) +
   stat_halfeye() +
-  labs(title = "Avg. simulated coefficient plot for fixed effects (predictors)",
-       x = NULL, y = NULL) +
+  labs(title = "Simulated coefficient plot for fixed effects (predictors)",
+       x = NULL, y = "b1 (cond) size") +
   theme_bw() +
   scale_fill_brewer(palette = "Dark2") +
   theme(panel.grid   = element_blank(),
@@ -519,18 +526,19 @@ p_fixed <- ggplot(parameters, aes(x = Estimate, y = fct_rev(parameter),
         legend.position = "none") +
   coord_cartesian(xlim =c(-1, 1)) +
   scale_x_continuous(breaks=seq(-1,1,0.25)) +
-  facet_wrap(~b1)
+  facet_wrap(~parameter)
 p_fixed
 
-ggsave ("figures/sim_fixef.jpeg",
-        width = 5, height = 4)
+ggsave ("figures/sim_fixef_x100.jpeg",
+        width = 6, height = 4)
 ```
 
+these look good, and as expected.
 
 ## section 6 - calculate power i.e., % Q2.5 > 0 ##
 
 Of course, statistical power is not Bayesian thing. But I calculate it here just
-to show a contact point for something that is likely more familiar to folks.
+to show a contact point for something that is likely more familiar to most folks.
 
 ```{r}
 power <- parameters %>% 
@@ -550,7 +558,7 @@ p_power <- ggplot(power, aes(x = b1, y = subj_n, fill = power)) +
   scale_fill_viridis_c(limits = c(0, 1)) 
 p_power
 # 
-ggsave ("figures/power.jpeg")
+ggsave ("figures/power_x100.jpeg")
 ```
 
 plot parameters and include power as a text label
@@ -576,8 +584,8 @@ p_params <- plot_params %>%
   geom_hline(yintercept = 0, colour = "red") +
   # geom_hline(aes(yintercept = b1), colour = "blue") + # this would add a line at b1 - the target effect size
   scale_colour_manual(values=c("darkgrey","black")) +
-  geom_text(aes(x=75, y=-0.1,
-                label = sprintf("%.1f%s", power, "% power")), color = "darkgrey", size = 4) +
+  geom_text(aes(x=75, y=-0.5,
+                label = sprintf("%.f%s", power, "% power")), color = "darkgrey", size = 4) +
   theme_bw() +
   theme(legend.position = "none") +
   labs(x = "sim exp # (i.e., simulation index)",
@@ -585,23 +593,37 @@ p_params <- plot_params %>%
   facet_grid(fct_rev(subj_n) ~ b1) 
 p_params
 
-ggsave ("figures/parameters.jpeg",
-        width = 5, height = 4)
+ggsave ("figures/parameters_x100.jpeg",
+        width = 10, height = 6)
 ```
+
+This plot is quite instructive. Given the assumptions of this design and datasets,
+targeting an effect size of 0.25 with any of the three Ns does not look so great.
+e.g., even N=75 has a good bunch of sims crossing zero.
+
+In contrast, N=50 and above seem a lot better. e.g., for a target effect of 0.5,
+which would not be unreasonable in these types of rt congruency type designs,
+N=50 gives 95% power.
+
+With the number of sims ramped up to 1000, we would have an even better idea.
+
+But there are lots of problems/limitations focussing on NHST and power. So let's 
+focus on precision intead and the width of the intervals that we might expect.
 
 ## section 7 - calculate interval widths and precision, rather than NHST and power ##
 
-This has XX sims per 3 Ns and 3 b1s. What's nice about this approach is that 
-without sweating blood to think about what widths to come up with, we can just 
-simulate a range of reasonable/feasible sample sizes and effect sizes. 
-We already know a lot about both of these, given the practical and financial 
-constraints of the type of data collections and effect sizes in psychology,
-which tend to be small. So it might be a good way to go initially to get a sense.
+Our simulated parameters are based on 100 sims per 3 sample sizes and 3 effect sizes. 
+What's nice about this approach is that without sweating blood to think about 
+what widths to come up with, we can just simulate a range of reasonable/feasible 
+sample sizes and effect sizes. We already know a lot about both of these, 
+given the practical and financial constraints of the type of data collections 
+and effect sizes in psychology, which tend to be small. So it might be a good 
+way to go initially to get a sense.
 
 ## load in the saved parameters if necessary ##
 
 ```{r}
-# parameters <- read_csv("data/sim_p.csv") 
+# parameters <- read_csv("data/sim_p_x100.csv") 
 # head(parameters)
 ```
 
@@ -615,7 +637,7 @@ instead arrange them by the lower levels.
 plot_w <- parameters %>%
   filter(parameter == "cond") %>% 
   arrange(subj_n, b1, Q2.5) %>%
-  mutate(rank = rep(1:2, times=9)) # XX reps per 9 variations (3 subj_n * 3 b1)
+  mutate(rank = rep(1:100, times=9)) # 100 exp reps per 9 variations (3 subj_n * 3 b1)
 head(plot_w)
 str(plot_w)
 
@@ -631,7 +653,7 @@ p_q2.5 <- plot_w %>%
   facet_grid(fct_rev(subj_n) ~ b1)
 p_q2.5
 
-ggsave("figures/params_by_Q2.5.jpeg")
+# ggsave("figures/params_by_Q2.5_x100.jpeg")
 ```
 
 Notice how this arrangement highlights the differences in widths among the 
@@ -657,7 +679,7 @@ p_hist <- plot_w %>%
   facet_grid(fct_rev(subj_n) ~ b1)
 p_hist
 
-ggsave("figures/width_hist.jpeg")
+# ggsave("figures/width_hist_x100.jpeg")
 ```
 
 now re-plot but only by sample size.
@@ -666,28 +688,30 @@ now re-plot but only by sample size.
 # using a facet for sample size
 p_hist_n <- plot_w %>%
   ggplot(aes(x = width, fill = subj_n)) +
-  geom_histogram(binwidth = .01) +
-  geom_rug(linewidth = 1/6) +
+  geom_histogram(binwidth = .01, position = "identity") +
+  geom_rug(aes(colour = subj_n), linewidth = 1/6) +
+  theme_bw() +
+  theme(legend.position = "bottom") + 
   facet_wrap(~subj_n)
 p_hist_n
 
-ggsave("figures/width_hist_n.jpeg")
+# ggsave("figures/width_hist_n_x100.jpeg")
 
 
 # overlaying sample size dists
 p_hist_n2 <- plot_w %>%
-  ggplot(aes(x = width, fill = subj_n, colour = subj_n)) +
-  geom_histogram(binwidth = .01, position = 'identity', alpha = 0.7) +
-  geom_rug(linewidth = 1/6) +
+  ggplot(aes(x = width, fill = subj_n)) +
+  geom_histogram(colour = "black", binwidth = .01, alpha = 0.7, position = "identity") +
+  geom_rug(aes(colour = subj_n), linewidth = 1/6) +
   scale_fill_discrete(breaks=c('75', '50', '25')) +
   scale_colour_discrete(breaks="none") +
   theme_bw() +
   theme(legend.position = "bottom") + 
-  scale_x_continuous(breaks = seq(0.4, 1.1, 0.1)) +
+  scale_x_continuous(breaks = seq(0.3, 0.7, 0.1)) +
   ggtitle("95% interval widths by simulated sample size")
 p_hist_n2
 
-ggsave("figures/width_hist_n2.jpeg")
+ggsave("figures/width_hist_n2_x100.jpeg")
 ```
 
 Take a random sample of the sims to look at a few...
@@ -696,28 +720,30 @@ Take a random sample of the sims to look at a few...
 set.seed(123)
 
 sample10 <- plot_w %>%
-  group_by(subj_n, b1) %>% 
-  sample_n(2) %>% # change this to 10 to select 10 exps randomly
+  filter(b1 == "0.5") %>% ## just focus on one effect size
+  group_by(subj_n, b1) %>%
+  sample_n(10) %>% 
   mutate(exp = exp %>% as.character()) %>%
 
   ggplot(aes(x = Estimate, xmin = Q2.5, xmax = Q97.5, y = exp, 
              colour = subj_n)) +
-  geom_vline(xintercept = c(0, .5), color = "white") +
+  geom_vline(xintercept = c(0, 0.25, 0.5, 0.75), color = "darkgrey") +
   geom_pointrange() +
   labs(x = expression(beta[1]),
        y = "exp rep #") +
   scale_x_continuous(breaks = seq(-.25, 1.25, 0.25), 
                      limits = c(-0.25, 1.25)) +
-  facet_grid(fct_rev(subj_n)~b1) +
-  theme_bw()
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  facet_grid(fct_rev(subj_n)~b1, scales = "free")
 sample10
 
 ggsave("figures/sample10.jpeg",
-       width = 5, height = 4)
+       width = 6, height = 8)
 ```
 
-So instead of focusing on rejecting a null hypothesis, we might instead use our 
-simulation skills to determine the sample size we need to have most of our 95% 
+So instead of focusing on rejecting a null hypothesis, we might instead 
+determine the sample size we need to have most of our 95% 
 intervals come in at a certain level of precision. This has been termed the 
 accuracy in parameter estimation [AIPE; Maxwell et al. ( 2008); see also 
 Kruschke ( 2015)] approach to sample size planning.
@@ -737,24 +763,32 @@ plot_w %>%
 
 #  subj_n b1    power_05 power_04 power_03
 #   <fct>  <fct>    <dbl>    <dbl>    <dbl>
-# 1 25     0.25       1        0        0  
-# 2 25     0.5        0.5      0        0  
-# 3 25     0.75       0.5      0        0  
-# 4 50     0.25       1        0.5      0  
-# 5 50     0.5        1        1        0  
-# 6 50     0.75       1        0.5      0  
-# 7 75     0.25       1        1        0  
-# 8 75     0.5        1        1        0.5
-# 9 75     0.75       1        1        0  
+# 1 25     0.25      0.47     0        0   
+# 2 25     0.5       0.34     0.02     0   
+# 3 25     0.75      0.35     0.01     0   
+# 4 50     0.25      1        0.74     0.01
+# 5 50     0.5       1        0.63     0.02
+# 6 50     0.75      1        0.65     0.05
+# 7 75     0.25      1        1        0.28
+# 8 75     0.5       1        1        0.43
+# 9 75     0.75      1        1        0.26
 ```
 
-ok, at N=XX, widths < XXX look good-ish (e.g., > 80%). Terrible at .3
+ok, at N=50, widths < 0.5 look good (e.g., 100%), not so good at <0.4 (e.g., 65-75%) 
+and terrible at < .3
 
-Our simulation suggests we have about a XX% probability of achieving 95% CI 
-widths of XX or smaller with n=XX.
+At N=75, things are more precise of course.
+
+As one example, our simulation, therefore, suggests that we have about a 65% 
+probability of achieving 95% CI widths of .04 or smaller with n=50, but 100%
+of widths will likely be under 0.5.
+
+At this point, it really depends on the aim and goal of the project to determine
+if such widths are appropriate and which sample size is most reasonable given the 
+balance between resources and precision.
 
 
-The .8 criterion would give our AIPE analyses a sense of familiarity with 
+Using the .8 criterion would give our AIPE analyses a sense of familiarity with 
 traditional power analyses, which some reviewers might appreciate. But in his 
 text, Kruschke mentioned several other alternatives. One would be to set maximum 
 value for our CI widths and simulate to find the nn necessary so all our 
@@ -768,22 +802,30 @@ plot_w %>%
   group_by(subj_n, b1) %>%
   summarise(avg_width = mean(width))
 
-# subj_n b1    avg_width
+#   subj_n b1    avg_width
 #   <fct>  <fct>     <dbl>
-# 1 25     0.25      0.433
-# 2 25     0.5       0.546
-# 3 25     0.75      0.528
-# 4 50     0.25      0.401
-# 5 50     0.5       0.355
-# 6 50     0.75      0.402
-# 7 75     0.25      0.355
-# 8 75     0.5       0.333
-# 9 75     0.75      0.344
+# 1 25     0.25      0.517
+# 2 25     0.5       0.538
+# 3 25     0.75      0.525
+# 4 50     0.25      0.376
+# 5 50     0.5       0.386
+# 6 50     0.75      0.384
+# 7 75     0.25      0.312
+# 8 75     0.5       0.309
+# 9 75     0.75      0.313
 ```
 
-ok, so the averages are pretty good? The closer to 0.4 the better.
-That would mean that an effect of 0.5 could be distinguished consistently from 
-0.3 and 0.7. But all of these effect sizes are a little arbitrary, so what the bother?
+ok, so the averages look like this approximately.
+
+N25 = ~0.5
+N50 = ~0.4
+N75 = ~0.3
+
+Using N50 and ~0.4 would mean that an effect of 0.5 could be distinguished 
+pretty consistently from 0.3 and 0.7. And maybe that's useful to know for theory
+and likely effect sizes etc. 
+
+But all of these effect sizes are a little arbitrary, so what the bother?
 
 I guess the bother is less about being "sure" of something in the future and more
 about guiding what you could reasonably expect from an experiment based on the
@@ -792,13 +834,19 @@ with a given N, how precise would our estimates be? And what other effect sizes
 would be likely to be able to rule-out? This means this is no longer about clearing
 zero, but it is instead about guiding expectations about likely precision. 
 
-e.g., with N=50, we can be reasonably confident that could distinguish an effect of
-0.5 from 0.3 and 0.7. Why that might be useful or important would entirely 
-depend on domain knowledge and the context. In this case, it is for basic 
-research and understanding, so there is no immediate applied context or real-world
-relevance. It is more important to as a consideration for resource use, efficiency
-and the precision of the inference. 
+e.g., with N=50 and and avg. interval <~0.4, we can be reasonably confident that
+we could distinguish an effect of 0.5 from 0.3 and 0.7. Why that might be useful 
+or important would entirely depend on domain knowledge and the context. In this case, 
+it is for basic research and understanding, so there is no immediate applied 
+context or real-world relevance. It is more important to as a consideration for 
+resource use, efficiency and the precision of the inference. And for the relationship
+between the theory and hypotheses under investigation.
 
 But in another, more applied context, it might be really important to clear smaller
 effect sizes (like 0.2 or 0.3) because you might not run an intervention at scale
 if that were the case or continue drug development or whatever else. 
+
+Anyway, using these tools gives a principled way to help one consider the likely
+precision of estimates BEFORE you run the study. That feels really useful, even
+if we don't yet have a lot of experience thinking in this way, this kind of planning
+process might help us get started.
