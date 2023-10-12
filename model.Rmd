@@ -11,7 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This file builds a series of Bayesian regression models, performs model checks 
+This file builds a series of Bayesian regression models, performs model checks
 and model comparisons.
 
 ## load the libraries that we will be using ## 
