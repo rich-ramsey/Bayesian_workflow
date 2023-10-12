@@ -11,9 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This file simulates a series of datasets and build models to estimate the likely
-(power and) precision of future experiments. It is one way to plan sample sizes,
-for example.
+This file simulates a series of datasets and build models to estimate the likely power and precision of future experiments. It is one way to plan sample sizes, for example.
 
 The simulation pipeline below was largely inspired by the work of two people:
 
