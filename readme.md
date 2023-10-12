@@ -57,5 +57,11 @@ There are three main folders:
 
 These folders have self-explanatory titles. Inside each one, there may be sub-directories, which hopefully also have sensible titles. e.g., a sub-directory called /plan/ holds figures/models/data from the plan.Rmd file and phase of the workflow.
 
+## Overview of the gaze-cueing task ##
+
+We use a task from experimental psychology that involves speeded responses and the recording of reaction times and accuracy. The basic task is based on the Posner cueing paradigm, which uses arrows as a central directional cue (left or right) and targets that can either be congruent (same as the location cued by the arrow) or incongruent (opposite to the location cued by the arrow). Typically, a reaction time cost is observed in the incongruent compared to conguruent condition.
+
+In this workflow, the example we use is based on this Posner cueing paradigm, but it uses faces and eye-gaze as a directional cue instead of arrows (see, for example: Driver et al., 1999[http://www.informaworld.com/10.1080/135062899394920]; And for a review, see: Frischen et al., 2007[https://psycnet.apa.org/record/2007-09203-007]).
+
 
 
