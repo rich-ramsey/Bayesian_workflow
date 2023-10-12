@@ -9,11 +9,11 @@ The Bayesian workflow paper can be found here: http://arxiv.org/abs/2011.01808
 
 The workflow that I present is broken down into several different stages. Each stage has its own markdown file. I found it easier to organise things in this way such that each script represents a little self-contained module or sub-process. The different scripts are detailed below.
 
-*One important caveat*. This is not an exhaustive or complete application of the Bayesian workflow that was outlined by Gelman and colleagues. It is simply a selection from a set of processes that are then applied to an example in experimental psychology. I've found it useful to think about things in this way and so I wanted to write it down. There is much more richness and subtlety in the article than I have tried to convey in these scripts. There is also an important iterative dimension that I don't really talk about in these scripts, even though the scripts themselves developed in an iterative process. The iterative part is important though because Gelman and co. talk about cycling through different stages as knowledge and understanding develops. See Figure 1 in the above paper for a visualisation of the non-serial and iterative nature of the workflow.
+**One important caveat**. This is not an exhaustive or complete application of the Bayesian workflow that was outlined by Gelman and colleagues. It is simply a selection from a set of processes that are then applied to an example in experimental psychology. I've found it useful to think about things in this way and so I wanted to write it down. There is much more richness and subtlety in the article than I have tried to convey in these scripts. There is also an important iterative dimension that I don't really talk about in these scripts, even though the scripts themselves developed in an iterative process. The iterative part is important though because Gelman and co. talk about cycling through different stages as knowledge and understanding develops. See Figure 1 in the above paper for a visualisation of the non-serial and iterative nature of the workflow.
 
 Anyway, it's a really good paper, and I didn't want to spoil all the fun for you. So just go and read it.
 
-## Project organsiation and folder structure ##
+## Project organisation and folder structure ##
 
 The overall Bayesian workflow that I outline here will be split up into several sections, as follows:
 
@@ -22,7 +22,7 @@ The overall Bayesian workflow that I outline here will be split up into several 
 3. build a series of models and perform model checking and model comparison.
 4. evaluate the posterior.
 
-*scripts*
+**code**
 
 There are four main R Markdown files, each of which is associated with a distinct role in the workflow (1-4 above).
 
@@ -45,23 +45,23 @@ and model comparisons.
 
 This file visualises and tabulates parameters from the posterior distributions of model/s that were built in the model.Rmd file.
 
-*folders*
+**folders**
 
 There are three main folders:
 
-*/data/*
+**/data/**
 
-*/figures/*
+**/figures/**
 
-*/models/*
+**/models/**
 
 These folders have self-explanatory titles. Inside each one, there may be sub-directories, which hopefully also have sensible titles. e.g., a sub-directory called /plan/ holds figures/models/data from the plan.Rmd file and phase of the workflow.
 
 ## Overview of the gaze-cueing task ##
 
-We use a task from experimental psychology that involves speeded responses and the recording of reaction times and accuracy. The basic task is based on the Posner cueing paradigm, which uses arrows as a central directional cue (left or right) and targets that can either be congruent (same as the location cued by the arrow) or incongruent (opposite to the location cued by the arrow). Typically, a reaction time cost is observed in the incongruent compared to conguruent condition.
+We use a task from experimental psychology that involves speeded responses and the recording of reaction time and accuracy. The basic task is based on the Posner cueing paradigm [Posner, 1980](https://doi.org/10.1080/00335558008248231), which uses arrows as a central directional cue (left or right) and targets that can either be congruent (same as the location cued by the arrow) or incongruent (opposite to the location cued by the arrow). Typically, a reaction time cost is observed in the incongruent compared to conguruent condition.
 
-In this workflow, the example we use is based on this Posner cueing paradigm, but it uses faces and eye-gaze as a directional cue instead of arrows (see, for example: Driver et al., 1999[http://www.informaworld.com/10.1080/135062899394920]; And for a review, see: Frischen et al., 2007[https://psycnet.apa.org/record/2007-09203-007]).
+In this workflow, the example we use is based on this Posner cueing paradigm, but it uses faces and eye-gaze as a directional cue instead of arrows (see, for example: [Driver et al., (1999)](http://www.informaworld.com/10.1080/135062899394920); [Langton & Bruce, (1999)](https://doi.org/10.1080/135062899394939); And for a review, see: [Frischen et al., 2007](https://psycnet.apa.org/record/2007-09203-007).
 
 
 
