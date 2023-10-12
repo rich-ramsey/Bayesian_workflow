@@ -118,8 +118,7 @@ standardised units. This is because in standardised units, I may just pick 3 opt
 which all might be reasonable. e.g., a difference of 0.25, 0.5 and 0.75. For much
 of psychology, a standardised effect of 0.75 would be probably way too big and 
 an unreasonable choice, even for a simulation. But, for congruency effects in
-rt, it is not that uncommon. The choice would need titrating to the domain in
-question.
+rt, it is not that uncommon (depending on the specific task). The choice would need titrating to the domain in question.
 
 On this basis, therefore, we may want to simulate data using a dv that is in a 
 centred and standardised metric, so that we can more easily plug in standardised 
@@ -131,9 +130,22 @@ so let's create the data in a centred metric and standardised metric.
 
 ideally, if we have similar prior data (not necessarily the same design), we could
 use that to guide estimates for how much variation in intercepts and slopes
-we might expect in terms of SD. Here, I just picked items to be half the variation
-as participants, as that seems like a very common and general trend in this kind
-of work that items vary less than participants.
+we might expect in terms of SD. Here, I initially just picked items to be half the variation as participants, as that seems like a very common and general trend in this kind of work that items vary less than participants.
+
+But we could still do with a ballpark estimate for SD and cor, so let's load a previous model that used a similar design and collected gaze-cueing data.
+
+(brief notes on the old data: N = 102, 8 faces as stim, gaze left and right,
+target left and right, producing a compatibility effect. Just like the Posner
+cueing task but with faces and gaze direction. The effect of cue was tiny, but
+quite precise. The most important thing for the current purpose is getting a 
+sense of SDs and cor values. formula was dv ~ 1 + cond + (1 + cond | pid) + (1 | stim))
+
+```{r}
+b1.3 <- readRDS("models/old_gaze_fit/b1.3.rds")
+summary(b1.3)
+```
+
+ok, values close to these values can guide the below sims.
 
 And I've chosen to reduce the number of items and repeats, so that the datasets
 are smaller and therefore the models will take less time to build. e.g., if each 
@@ -142,7 +154,7 @@ manipulated that could take a long time. And it might be a good use of time for
 real planning, but this is just a demonstration, so there's no need for that.
 
 In short, I reduced the dataset from a total of 8000 observations for 25 
-participants to XXX observations. 64 observations per pid with 50% congr and 50%
+participants to 1600 observations. 64 observations per pid with 50% congr and 50%
 incon. We would typically use more trials than this, especially if we had a nested
 multi-level structure. But nonetheless, this might be a fine place to start as a 
 way to get a sense of what to expect in terms of precision.
@@ -157,13 +169,13 @@ item_n = 4  # number of items (4 faces x 2 repeats (half gaze left))
 rep_n = 4 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
 b0 = 0      # intercept
 b1 = 0.5      # fixed effect of condition
-u0s_sd = 1   # random intercept SD for subjects
-u1s_sd = 0.5   # random b1 slope SD for subjects
-u0i_sd = 0.5   # random intercept SD for items
-u1i_sd = 0.25   # random b1 slope SD for items
-r01s = 0.3   # correlation between random effects 0 and 1 for subjects
-r01i = 0.3   # correlation between random effects 0 and 1 for items
-sigma_sd = 2 # error SD
+u0s_sd = 0.5   # random intercept SD for subjects
+u1s_sd = 0.1   # random b1 slope SD for subjects
+u0i_sd = 0.05   # random intercept SD for items
+u1i_sd = 0.01   # random b1 slope SD for items
+r01s = 0.1   # correlation between random effects 0 and 1 for subjects
+r01i = 0.1   # correlation between random effects 0 and 1 for items
+sigma_sd = 1 # error SD
 
 # set up data structure
 ds <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
@@ -202,17 +214,16 @@ ggplot(ds, aes(x=rt, fill=condition)) +
 read in a fit, if already computed
 
 ```{r}
-# fit <- readRDS("models/fit.rds")
+# fit <- readRDS("models/plan/fit.rds")
 # summary(fit)
 ```
-
 
 formula
 
 ```{r}
 formula = bf(rt ~ 1 + cond + 
                (1 + cond | subj) +
-               (1 | item)) 
+               (1 + cond | item)) 
 ```
 
 check priors
@@ -232,7 +243,7 @@ visualize("normal(0, 0.5)", "normal(0, 1)", "normal(0, 2)",
 
 ok, (0, 0.5) seems sensible for the slope (b). And (0,1) for the intercept.
 
-Both minimise the focus on what would be unusually extreme values.
+Both minimise the focus on what would be relatively extreme values.
 
 set priors
 
@@ -257,15 +268,16 @@ fit <-
       family = gaussian,
       formula = formula,
       prior = priors,
+      control = list(adapt_delta = 0.95),
       seed = 1,
-      cores = 20)
+      cores = 8)
 summary(fit)
 
 t2 <- Sys.time()
 
 t2 - t1
 
-# Time difference 41 secs - macbook, quad-core blah blah 
+# Time difference 56 secs - macbook, quad-core blah blah 
 # Time difference 31 secs - imac, 10/20-core blah blah 
 ```
 
@@ -273,6 +285,11 @@ if there were a few divergent transitions (out of 4000), I would not
 worry about this at this point because we would normally have way more data
 and we could set up change control parameters and run more iterations for the real
 thing, if that's what it needed.
+
+After running it with the default control parameters, I re-ran the model with 
+adapt_delta = 0.95. This should reduce the complaints from stan and not cost us
+too much in computational time so it is worth it. You could just leave it alone 
+completely though for a sim and just a few divergent transitions.
 
 let's take a look 
 
@@ -285,7 +302,7 @@ print(fit)
 fixef(fit)
 
 # save initial fit
-saveRDS(fit, "models/fit.rds")
+saveRDS(fit, "models/plan/fit.rds")
 ```
 
 update the fit and check the time taken (this is unnecessary, but just to see the time difference, which is large)
@@ -312,13 +329,13 @@ updated_fit <-
   update(fit,
          newdata = ds2,
          seed = 2,
-         cores = 20)
+         cores = 8)
 
 t2 <- Sys.time()
 
 t2 - t1
 
-# Time difference 12 secs - macbook. it will be quicker on my imac but I'm yet to test it.
+# Time difference 20 secs - macbook. it will be quicker on my imac but I'm yet to test it.
 # Time difference 11 secs - imac.
 ```
 
@@ -335,10 +352,10 @@ looks good. no complaints from stan.
 ```{r}
 sim <- function(subj_n = 25, item_n = 4, rep_n = 4,  # these can be changed when calling the function
                 b0 = 0, b1 = 0.5,         # fixed effects 
-                u0s_sd = 1, u0i_sd = 0.5,   # random intercepts subj and item
-                u1s_sd = 0.5, u1i_sd = 0.25,   # random slope subj and item
-                r01s = 0.3, r01i = 0.3,   # cor
-                sigma_sd = 2,           # error term
+                u0s_sd = 0.5, u0i_sd = 0.05,   # random intercepts subj and item
+                u1s_sd = 0.1, u1i_sd = 0.01,   # random slope subj and item
+                r01s = 0.1, r01i = 0.1,   # cor
+                sigma_sd = 1,           # error term
                 ... # helps the function work with pmap() below
                 ) {
 
@@ -368,15 +385,17 @@ sim(subj_n = 25, item_n = 4, b0 = 0, b1 = 0.5) # if you uncomment glimpse above,
 # it will let you glimpse the data that's generated. this is useful for checking / testing code purposes.
 ```
 
-## section 4 - run the simulations and iterate through variables ##
+## section 4 - run the simulations and iterate through exps and variables ##
 
 Here we just run 100 replicates because this is a demo. For the real thing, 
 something more like 1000 replicates would be more appropriate.
 
-## keep the data and model objects ##
+## runs sims and keep the data and model objects in the output ##
 
 this version keeps all the data and models (but sucks up memory), so it is mainly
 good for testing the code and checking the output rather than the real thing.
+
+Here, for example, I use it to test the code with 2 exp sims.
 
 ```{r}
 x <- crossing(
@@ -387,7 +406,6 @@ x <- crossing(
 ) %>%
   mutate(d = pmap(., sim)) %>%
   mutate(fit = map2(d, exp, ~update(fit, newdata = .x, seed = .y)))
-
 ```
 
 let's take a look
@@ -396,16 +414,88 @@ let's take a look
 head(x)
 ```
 
-unnest to expand the data, for example.
+unnest to expand the data.
 
 ```{r}
-sim_dat <-
+sim_dat_x2 <-
   x %>% 
   unnest(d)
-head(sim_dat)
+head(sim_dat_x2)
+
+write_csv(sim_dat_x2, "data/sim_dat_x2.csv")
 ```
 
-## only keep the parameter summaries ##
+and the same for params.
+
+```{r}
+sim_p_x2 <-
+  x %>% 
+  mutate(param = map(fit, ~ fixef(.) %>% 
+                       data.frame() %>% 
+                       rownames_to_column("parameter"))) %>% 
+  unnest(param)
+
+write_csv(sim_p_x2, "data/sim_p_x2.csv")
+```
+
+plot
+
+first, read in saved data and params, if available. Re-code factors.
+
+```{r}
+## data
+sim_dat_x2 <- read_csv("data/sim_dat_x2.csv") %>% 
+  mutate(subj_n = factor(subj_n, levels = c("25", "50")),
+         b1 = factor(b1, levels = c("0.25", "0.5")),
+         condition = factor(condition, 
+                            levels = c("congr", "incong")))
+head(sim_dat_x2)
+
+## parameters
+sim_p_x2 <- read_csv("data/sim_p_x2.csv") %>%
+  mutate(subj_n = factor(subj_n, levels = c("25", "50")),
+         b1 = factor(b1, levels = c("0.25", "0.5")),
+         parameter = factor(parameter, levels = c("Intercept", "cond")))
+head(sim_p_x2)
+```
+
+and plot
+
+data 
+
+```{r}
+ggplot(sim_dat_x2, aes(x=rt, fill=condition)) +
+   geom_density(alpha = 0.3, colour = "darkgrey") +
+   scale_fill_brewer(palette = "Dark2")+
+   theme_bw()+
+   theme(panel.grid = element_blank()) +
+   theme(legend.position = "none") +
+   ggtitle("rt by condition, b1 and N") +
+   facet_grid(fct_rev(subj_n)~b1)
+# ggsave ("figures/density.jpeg")
+```
+
+then plot params
+
+```{r}
+sim_p_x2 %>%
+  filter(parameter == "cond") %>% 
+  ggplot(aes(x = exp, y = Estimate, ymin = Q2.5, ymax = Q97.5)) +
+  geom_pointrange(fatten = 1/2) +
+  geom_hline(yintercept = 0, colour = "red") +
+  geom_hline(yintercept = c(0.25, 0.50), colour = "darkgrey") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "sim exp # (i.e., simulation index)",
+       y = expression(beta[1](condition))) +
+  facet_grid(fct_rev(subj_n)~b1) +
+  scale_x_continuous(breaks=seq(1,2,1)) 
+```
+
+ok, these look sensible, as far as 2 exps can go. But they seem to be hitting the
+right values that we expect as a basic sanity and code check.
+
+## runs sims and only keep the parameter summaries ##
 
 this version does not keep data or model objects, but just keeps the model summaries 
 for fixed effects. This is probably what you want to run when you scale-up the sims.
@@ -417,7 +507,7 @@ t1 <- Sys.time()
 
 plan(multicore)
 x <- crossing(
-  exp = 1:100, # number of experiment replicates
+  exp = 1:2, # number of experiment replicates
   subj_n = c(25, 50, 75), # range of subject N
   b0 = 0, # fixed intercept
   b1 = c(0.25, 0.5, .75), # range of effects
@@ -433,12 +523,13 @@ t2 <- Sys.time()
 
 t2 - t1 
 
-# Time difference 12 mins for 2 exp reps? - macbook.  (12 mins per 2 sims x 50 = 10 hrs for 100 sims; 
-# 100 hrs for 1000 sims. ~ 4 days). So kick it off over the weekend and go get a
-# beer.
+# Time difference ~15 mins for 2 exp reps - macbook.  
+# (15 mins per 2 sims x 50 = 12.5 hrs for 100 sims; 125 hrs for 1000 sims. ~5 days). 
+# So kick it off over the weekend and go get a beer.
 
-# Time difference 8 mins for 2 exp reps? - imac  (8 mins per 2 sims x 50 = 6.67 hrs for 100 sims; 
-# 67 hrs for 1000 sims. ~ 4 days). So still time for a beer.
+# Time difference 8 mins for 2 exp reps - imac  
+# (8 mins per 2 sims x 50 = 6.67 hrs for 100 sims; 67 hrs for 1000 sims. ~4 days). 
+# So still time for a beer.
 ```
 
 let's take a quick look
@@ -472,7 +563,7 @@ alternatively, read in saved parameters, if they've already been computed and sa
 # head(parameters)
 ```
 
-q quick summary plot using tidybayes, just to see what the distributions
+a quick summary plot using tidybayes, just to see what the distributions
 look like (e.g., do they hit the simulated target values, on average, as they 
 should?)
 
