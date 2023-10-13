@@ -2,7 +2,9 @@
 title: "model"
 author: "Rich"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    css: "css/my-css.css"
 editor_options: 
   chunk_output_type: console
 ---
@@ -13,6 +15,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This file builds a series of Bayesian regression models, performs model checks
 and model comparisons.
+
+From Gelman & Co., page 12, on "Fitting a model":
+
+>Traditionally, Bayesian computation has been performed using a combination of analytic calculation and normal approximation. Then in the 1990s, it became possible to perform Bayesian inference for a wide range of models using Gibbs and Metropolis algorithms (Robert and Casella, 2011). The current state of the art algorithms for fitting open-ended Bayesian models include variational inference (Blei and Kucukelbir, 2017), sequential Monte Carlo (Smith, 2013), and Hamiltonian Monte Carlo (HMC; Neal, 2011, Betancourt, 2017a). .....
+    .... Sequential Monte Carlo is a generalization of the Metropolis algorithm that can be applied to any Bayesian computation, and HMC is a different generalization of Metropolis that uses gradient computation to move efficiently through continuous probability spaces. 
+    In the present article we focus on fitting Bayesian models using HMC and its variants, as implemented in Stan and other probabilistic programming languages. While similar principles should apply also to other software and other algorithms, there will be differences in the details. 
+    To safely use an inference algorithm in Bayesian workflow, it is vital that the algorithm provides strong diagnostics to determine when the computation is unreliable. In the present paper we discuss such diagnostics for HMC.
+
+From Gelman & Co., page 30, on "Evaluating a fitted model":
+
+>Once a model has been fit, the workflow of evaluating that fit is more convoluted, because there are many different things that can be checked, and each of these checks can lead in many directions. Statistical models can be fit with multiple goals in mind, and statistical methods are developed for different groups of users. The aspects of a model that needs to be checked will depend on the application.
+
+and page 30 on posterior predictive checks:
+
+>Posterior predictive checking is analogous to prior predictive checking (Section 2.4), but the parameter draws used in the simulations come from the posterior distribution rather than the prior. While prior predictive checking is a way to understand a model and the implications of the specified priors, posterior predictive checking also allows one to examine the fit of a model to real data (Box, 1980, Rubin, 1984, Gelman, Meng, and Stern, 1996).
+
 
 ## load the libraries that we will be using ## 
 

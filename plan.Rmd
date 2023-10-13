@@ -2,7 +2,9 @@
 title: "plan"
 author: "Rich"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    css: "css/my-css.css"
 editor_options: 
   chunk_output_type: console
 ---
@@ -18,6 +20,11 @@ The simulation pipeline below was largely inspired by the work of two people:
 1) Solomon Kurz's power blog: https://solomonkurz.netlify.app/tags/power/
 
 2) Lisa DeBruine's faux package: https://debruine.github.io/faux/
+
+
+From Gelman & Co., page 16, on "Fake-data simulation":
+
+>Working in a controlled setting where the true parameters are known can help us understand our data model and priors, what can be learned from an experiment, and the validity of the applied inference methods. The basic idea is to check whether our procedure recovers the correct parameter values when fitting fake data. Typically we choose parameter values that seem reasonable a priori and then simulate a fake dataset of the same size, shape, and structure as the original data. We next fit the model to the fake data to check several things.
 
 ## load the libraries that we will be using ## 
 
@@ -108,7 +115,8 @@ would we expect for manipulations of interest in original units (e.g., 10ms, 50m
 100ms) and also standardised units (e.g., 0.2, 0.5 etc.). I think the value of this
 is that it is quite easy to think that for most of psychology (with a few exceptions)
 standardised effect sizes >1 would be rare. 0.2-0.5 would be far more common.
-See here for a great paper on this topic: https://journals.sagepub.com/doi/full/10.1177/2515245919847202
+See here for a great paper on this topic: 
+https://journals.sagepub.com/doi/full/10.1177/2515245919847202.
 
 The upshot would be that if we wanted to simulate a range of effect sizes to see
 how precision or power might change, it could be kind of trivial if we think in
@@ -116,7 +124,8 @@ standardised units. This is because in standardised units, I may just pick 3 opt
 which all might be reasonable. e.g., a difference of 0.25, 0.5 and 0.75. For much
 of psychology, a standardised effect of 0.75 would be probably way too big and 
 an unreasonable choice, even for a simulation. But, for congruency effects in
-rt, it is not that uncommon (depending on the specific task). The choice would need titrating to the domain in question.
+rt, it is not that uncommon (depending on the specific task). The choice would 
+need titrating to the domain in question.
 
 On this basis, therefore, we may want to simulate data using a dv that is in a 
 centred and standardised metric, so that we can more easily plug in standardised 
@@ -128,15 +137,19 @@ so let's create the data in a centred metric and standardised metric.
 
 ideally, if we have similar prior data (not necessarily the same design), we could
 use that to guide estimates for how much variation in intercepts and slopes
-we might expect in terms of SD. Here, I initially just picked items to be half the variation as participants, as that seems like a very common and general trend in this kind of work that items vary less than participants.
+we might expect in terms of SD. Here, I initially just picked items to be half 
+the variation as participants, as that seems like a very common and general 
+trend in this kind of work that items vary less than participants.
 
-But we could still do with a ballpark estimate for SD and cor, so let's load a previous model that used a similar design and collected gaze-cueing data.
+But we could still do with a ballpark estimate for SD and cor, so let's load a 
+previous model that used a similar design and collected gaze-cueing data.
 
 (brief notes on the old data: N = 102, 8 faces as stim, gaze left and right,
 target left and right, producing a compatibility effect. Just like the Posner
-cueing task but with faces and gaze direction. The effect of cue was tiny, but
-quite precise. The most important thing for the current purpose is getting a 
-sense of SDs and cor values. formula was dv ~ 1 + cond + (1 + cond | pid) + (1 | stim))
+cueing task but with faces and gaze direction. The effect of compatibility was tiny, 
+but quite also precise, in terms of small interval widths. The most important 
+thing for the current purpose is getting a sense of SDs and cor values. 
+Model formula was: dv ~ 1 + cond + (1 + cond | pid) + (1 | stim))
 
 ```{r}
 b1.3 <- readRDS("models/old_gaze_fit/b1.3.rds")
@@ -268,7 +281,7 @@ fit <-
       prior = priors,
       control = list(adapt_delta = 0.95),
       seed = 1,
-      cores = 8)
+      cores = 20)
 summary(fit)
 
 t2 <- Sys.time()
@@ -276,7 +289,7 @@ t2 <- Sys.time()
 t2 - t1
 
 # Time difference 56 secs - macbook, quad-core blah blah 
-# Time difference 31 secs - imac, 10/20-core blah blah 
+# Time difference 42 secs - imac, 10/20-core blah blah 
 ```
 
 if there were a few divergent transitions (out of 4000), I would not 
@@ -327,14 +340,14 @@ updated_fit <-
   update(fit,
          newdata = ds2,
          seed = 2,
-         cores = 8)
+         cores = 20)
 
 t2 <- Sys.time()
 
 t2 - t1
 
 # Time difference 20 secs - macbook. it will be quicker on my imac but I'm yet to test it.
-# Time difference 11 secs - imac.
+# Time difference 19 secs - imac.
 ```
 
 take a look
@@ -388,7 +401,7 @@ sim(subj_n = 25, item_n = 4, b0 = 0, b1 = 0.5) # if you uncomment glimpse above,
 Here we just run 100 replicates because this is a demo. For the real thing, 
 something more like 1000 replicates would be more appropriate.
 
-## runs sims and keep the data and model objects in the output ##
+## run sims and keep the data and model objects in the output ##
 
 this version keeps all the data and models (but sucks up memory), so it is mainly
 good for testing the code and checking the output rather than the real thing.
@@ -490,10 +503,10 @@ sim_p_x2 %>%
   scale_x_continuous(breaks=seq(1,2,1)) 
 ```
 
-ok, these look sensible, as far as 2 exps can go. But they seem to be hitting the
+ok, these look sensible, as far as 2 exps can go. They seem to be hitting the
 right values that we expect as a basic sanity and code check.
 
-## runs sims and only keep the parameter summaries ##
+## run sims and only keep the parameter summaries ##
 
 this version does not keep data or model objects, but just keeps the model summaries 
 for fixed effects. This is probably what you want to run when you scale-up the sims.
@@ -505,7 +518,7 @@ t1 <- Sys.time()
 
 plan(multicore)
 x <- crossing(
-  exp = 1:2, # number of experiment replicates
+  exp = 1:100, # number of experiment replicates
   subj_n = c(25, 50, 75), # range of subject N
   b0 = 0, # fixed intercept
   b1 = c(0.25, 0.5, .75), # range of effects
@@ -525,8 +538,8 @@ t2 - t1
 # (15 mins per 2 sims x 50 = 12.5 hrs for 100 sims; 125 hrs for 1000 sims. ~5 days). 
 # So kick it off over the weekend and go get a beer.
 
-# Time difference 8 mins for 2 exp reps - imac  
-# (8 mins per 2 sims x 50 = 6.67 hrs for 100 sims; 67 hrs for 1000 sims. ~4 days). 
+# Time difference ~13 mins for 2 exp reps - imac  
+# (8 mins per 2 sims x 50 = ~11 hrs for 100 sims; 110 hrs for 1000 sims. ~4.5 days). 
 # So still time for a beer.
 ```
 
