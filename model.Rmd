@@ -111,13 +111,13 @@ item_n = 4  # number of items (4 faces x 2 repeats (half gaze left))
 rep_n = 4 # number of trial repeats per item e.g., face1 is shown X times per pid 50% L, 50% C
 b0 = 0      # intercept
 b1 = 0.5      # fixed effect of condition
-u0s_sd = 1   # random intercept SD for subjects
-u1s_sd = 0.5   # random b1 slope SD for subjects
-u0i_sd = 0.5   # random intercept SD for items
-u1i_sd = 0.25   # random b1 slope SD for items
-r01s = 0.3   # correlation between random effects 0 and 1 for subjects
-r01i = 0.3   # correlation between random effects 0 and 1 for items
-sigma_sd = 2 # error SD
+u0s_sd = 0.5   # random intercept SD for subjects
+u1s_sd = 0.1   # random b1 slope SD for subjects
+u0i_sd = 0.05   # random intercept SD for items
+u1i_sd = 0.01   # random b1 slope SD for items
+r01s = 0.1   # correlation between random effects 0 and 1 for subjects
+r01i = 0.1   # correlation between random effects 0 and 1 for items
+sigma_sd = 1 # error SD
 
 # set up data structure
 data <- add_random(subj = subj_n, item = item_n, trep = rep_n) %>%
