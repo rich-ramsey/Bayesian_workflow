@@ -18,9 +18,21 @@ in the model.Rmd file.
 
 From Gelman & Co., page 36, on "Summarising inference and propagating uncertainty":
 
->Bayesian inference is well suited for problems with latent variables and other settings with unresolvable uncertainty. In addition, we often use hierarchical models that include batches of parameters representing variation. For example, when reporting the results from our election forecasting model, we are interested in uncertainty in the forecast votes and also variation among states. 
-    Unfortunately, the usual ways of displaying Bayesian inference do not fully capture the multiple levels of variation and uncertainty in our inferences. A table or even a graph of parameter estimates, uncertainties, and standard errors is only showing one-dimensional margins, while graphs of marginal posterior distributions are unwieldy for models with many parameters and also fail to capture the interplay between uncertainty and variation in a hierarchical model. 
-    To start with, we should follow general principles of good statistical practice and graph data and fitted models, both for the “exploratory data analysis” purpose of uncovering unexpected patterns in the data and also more directly to understand how the model relates to the data used to fit it.
+>Bayesian inference is well suited for problems with latent variables and other 
+settings with unresolvable uncertainty. In addition, we often use hierarchical 
+models that include batches of parameters representing variation. For example, 
+when reporting the results from our election forecasting model, we are interested 
+in uncertainty in the forecast votes and also variation among states. 
+    Unfortunately, the usual ways of displaying Bayesian inference do not fully 
+capture the multiple levels of variation and uncertainty in our inferences. A 
+table or even a graph of parameter estimates, uncertainties, and standard errors 
+is only showing one-dimensional margins, while graphs of marginal posterior 
+distributions are unwieldy for models with many parameters and also fail to 
+capture the interplay between uncertainty and variation in a hierarchical model. 
+    To start with, we should follow general principles of good statistical practice 
+and graph data and fitted models, both for the “exploratory data analysis” 
+purpose of uncovering unexpected patterns in the data and also more directly to 
+understand how the model relates to the data used to fit it.
 
 ## load the libraries that we will be using ## 
 

@@ -13,7 +13,9 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This file simulates a series of datasets and build models to estimate the likely power and precision of future experiments. It is one way to plan sample sizes, for example.
+This file simulates a series of datasets and build models to estimate the likely 
+power and precision of future experiments. It is one way to plan sample sizes, 
+for example.
 
 The simulation pipeline below was largely inspired by the work of two people:
 
@@ -24,7 +26,13 @@ The simulation pipeline below was largely inspired by the work of two people:
 
 From Gelman & Co., page 16, on "Fake-data simulation":
 
->Working in a controlled setting where the true parameters are known can help us understand our data model and priors, what can be learned from an experiment, and the validity of the applied inference methods. The basic idea is to check whether our procedure recovers the correct parameter values when fitting fake data. Typically we choose parameter values that seem reasonable a priori and then simulate a fake dataset of the same size, shape, and structure as the original data. We next fit the model to the fake data to check several things.
+>Working in a controlled setting where the true parameters are known can help 
+us understand our data model and priors, what can be learned from an experiment, 
+and the validity of the applied inference methods. The basic idea is to check 
+whether our procedure recovers the correct parameter values when fitting fake data. 
+Typically we choose parameter values that seem reasonable a priori and then 
+simulate a fake dataset of the same size, shape, and structure as the original 
+data. We next fit the model to the fake data to check several things.
 
 ## load the libraries that we will be using ## 
 

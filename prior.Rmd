@@ -19,11 +19,22 @@ domain knowledge of the type of data.
 
 From Gelman & co., page 10:
 
->Prior predictive checks are a useful tool to understand the implications of a prior distribution in the context of a generative model (Box, 1980, Gabry et al., 2019; see also Section 7.3 for details on how to work with prior distributions). In particular, because prior predictive checks make use of simulations from the model rather than observed data, they provide a way to refine the model without using the data multiple times.
+>Prior predictive checks are a useful tool to understand the implications of a 
+prior distribution in the context of a generative model (Box, 1980, Gabry et al., 2019; 
+see also Section 7.3 for details on how to work with prior distributions). 
+In particular, because prior predictive checks make use of simulations from the 
+model rather than observed data, they provide a way to refine the model without 
+using the data multiple times.
 
 And page 11 on generative models:
 
->Fully Bayesian data analysis requires a generative model—that is, a joint probability distribution for all the data and parameters. The point is subtle: Bayesian inference does not actually require the generative model; all it needs from the data is the likelihood, and different generative models can have the same likelihood. But Bayesian data analysis requires the generative model to be able to perform predictive simulation and model checking (Sections 2.4, 4.1, 4.2, 6.1, and 6.2), and Bayesian workflow will consider a series of generative models.
+>Fully Bayesian data analysis requires a generative model—that is, a joint 
+probability distribution for all the data and parameters. The point is subtle: 
+Bayesian inference does not actually require the generative model; all it needs 
+from the data is the likelihood, and different generative models can have the 
+same likelihood. But Bayesian data analysis requires the generative model to be 
+able to perform predictive simulation and model checking (Sections 2.4, 4.1, 
+4.2, 6.1, and 6.2), and Bayesian workflow will consider a series of generative models.
 
 ## load the libraries that we will be using ## 
 

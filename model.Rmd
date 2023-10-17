@@ -18,10 +18,25 @@ and model comparisons.
 
 From Gelman & Co., page 12, on "Fitting a model":
 
->Traditionally, Bayesian computation has been performed using a combination of analytic calculation and normal approximation. Then in the 1990s, it became possible to perform Bayesian inference for a wide range of models using Gibbs and Metropolis algorithms (Robert and Casella, 2011). The current state of the art algorithms for fitting open-ended Bayesian models include variational inference (Blei and Kucukelbir, 2017), sequential Monte Carlo (Smith, 2013), and Hamiltonian Monte Carlo (HMC; Neal, 2011, Betancourt, 2017a). .....
-    .... Sequential Monte Carlo is a generalization of the Metropolis algorithm that can be applied to any Bayesian computation, and HMC is a different generalization of Metropolis that uses gradient computation to move efficiently through continuous probability spaces. 
-    In the present article we focus on fitting Bayesian models using HMC and its variants, as implemented in Stan and other probabilistic programming languages. While similar principles should apply also to other software and other algorithms, there will be differences in the details. 
-    To safely use an inference algorithm in Bayesian workflow, it is vital that the algorithm provides strong diagnostics to determine when the computation is unreliable. In the present paper we discuss such diagnostics for HMC.
+>Traditionally, Bayesian computation has been performed using a combination of 
+analytic calculation and normal approximation. Then in the 1990s, it became 
+possible to perform Bayesian inference for a wide range of models using Gibbs 
+and Metropolis algorithms (Robert and Casella, 2011). The current state of the 
+art algorithms for fitting open-ended Bayesian models include variational 
+inference (Blei and Kucukelbir, 2017), sequential Monte Carlo (Smith, 2013), 
+and Hamiltonian Monte Carlo (HMC; Neal, 2011, Betancourt, 2017a). .....
+.... 
+    Sequential Monte Carlo is a generalization of the Metropolis algorithm 
+that can be applied to any Bayesian computation, and HMC is a different 
+generalization of Metropolis that uses gradient computation to move efficiently 
+through continuous probability spaces. 
+    In the present article we focus on fitting Bayesian models using HMC and 
+its variants, as implemented in Stan and other probabilistic programming 
+languages. While similar principles should apply also to other software and 
+other algorithms, there will be differences in the details. 
+    To safely use an inference algorithm in Bayesian workflow, it is vital that 
+the algorithm provides strong diagnostics to determine when the computation 
+is unreliable. In the present paper we discuss such diagnostics for HMC.
 
 From Gelman & Co., page 30, on "Evaluating a fitted model":
 
