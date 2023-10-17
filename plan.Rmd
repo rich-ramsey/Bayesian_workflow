@@ -279,7 +279,7 @@ fit <-
       family = gaussian,
       formula = formula,
       prior = priors,
-      control = list(adapt_delta = 0.95),
+      control = list(adapt_delta = 0.99),
       seed = 1,
       cores = 20)
 summary(fit)
@@ -290,6 +290,7 @@ t2 - t1
 
 # Time difference 56 secs - macbook, quad-core blah blah 
 # Time difference 42 secs - imac, 10/20-core blah blah 
+# Time difference 1min - imac, 10/20-core blah blah with adapt_delta = 0.99
 ```
 
 if there were a few divergent transitions (out of 4000), I would not 
@@ -298,9 +299,10 @@ and we could set up change control parameters and run more iterations for the re
 thing, if that's what it needed.
 
 After running it with the default control parameters, I re-ran the model with 
-adapt_delta = 0.95. This should reduce the complaints from stan and not cost us
-too much in computational time so it is worth it. You could just leave it alone 
-completely though for a sim and just a few divergent transitions.
+adapt_delta = 0.95 (for the sim with x100) and 0.99 (for the sim with x1000). 
+This should reduce the complaints from stan and not cost us too much in 
+computational time so it is worth it. You could just leave it alone completely 
+though for a sim and just a few divergent transitions.
 
 let's take a look 
 
@@ -348,6 +350,7 @@ t2 - t1
 
 # Time difference 20 secs - macbook. it will be quicker on my imac but I'm yet to test it.
 # Time difference 19 secs - imac.
+# Time difference 36 secs - imac. with adapt_delta = 0.99
 ```
 
 take a look
@@ -541,6 +544,41 @@ t2 - t1
 # Time difference ~13 mins for 2 exp reps - imac  
 # (8 mins per 2 sims x 50 = ~11 hrs for 100 sims; 110 hrs for 1000 sims. ~4.5 days). 
 # So still time for a beer.
+
+# if we change adapt_delta from 0.95 to 0.99, then...
+# 22 mins per 2 sims x 50 = ~19 hrs for 100 sims; 180 hrs for 1000 sims. ~ 1 week).
+```
+
+now run some sims with no variation but with more exp/sim reps.
+e.g., just N=50, b1=0.5, then with 1000 reps/exps.
+The idea here is to zoom in on one likely candidate set of parameters in detail.
+This step is not necessary really. But it shows you that for the same computational
+time, you can focus in on one set of design parameters. Or simulate all the 
+variations and leave your computer purring for 4-5 days.
+
+OR maybe you only have time/money for N=50 and you want to know if that is a 
+reasonable approach, then sim 1000 and take a look.
+
+```{r}
+# t1 <- Sys.time()
+# 
+# plan(multicore)
+# x <- crossing(
+#   exp = 1:1000, # number of experiment replicates
+#   subj_n = 50, # range of subject N
+#   b0 = 0, # fixed intercept
+#   b1 = 0.5, # range of effects
+# ) %>%
+#   mutate(d = pmap(., sim)) %>%
+#   mutate(fit = map2(d, exp, ~update(fit, newdata = .x, seed = .y) %>% # this is the new bit
+#                      fixef() %>% 
+#                      data.frame() %>% 
+#                      rownames_to_column("parameter"))) %>% 
+#   select(-d) # this removes the data from the stored tibble 'x'
+# 
+# t2 <- Sys.time()
+# 
+# t2 - t1 
 ```
 
 let's take a quick look
@@ -570,7 +608,7 @@ save out parameters
 alternatively, read in saved parameters, if they've already been computed and saved.
 
 ```{r}
-# parameters <- read_csv("data/sim_p_x100.csv") 
+# parameters <- read_csv("data/sim_p_x100.csv")
 # head(parameters)
 ```
 
@@ -590,9 +628,6 @@ head(param_qi)
 # save it
 write_csv(param_qi, "data/param_qi_x100.csv")
 ```
-
-ok, at this point, you would check to see that the intervals cover the right 
-values per parameter, on average across the sims.
 
 and now let's plot to make it easier to see these values, rather than read them
 in a table.
@@ -635,7 +670,7 @@ ggsave ("figures/sim_fixef_x100.jpeg",
         width = 6, height = 4)
 ```
 
-these look good, and as expected.
+these look good, and as expected. So let's move on.
 
 ## section 6 - calculate power i.e., % Q2.5 > 0 ##
 
@@ -699,15 +734,12 @@ ggsave ("figures/parameters_x100.jpeg",
         width = 10, height = 6)
 ```
 
-This plot is quite instructive. Given the assumptions of this design and datasets,
-targeting an effect size of 0.25 with any of the three Ns does not look so great.
-e.g., even N=75 has a good bunch of sims crossing zero.
+This plot is quite instructive. Given the assumptions of this design and data,
+targeting an effect size of 0.25 would probably not be reasonable with N=25. 
+All of the other sample size & effect size combinations seem reasonable though.
 
-In contrast, N=50 and above seem a lot better. e.g., for a target effect of 0.5,
-which would not be unreasonable in these types of rt congruency type designs,
-N=50 gives 95% power.
-
-With the number of sims ramped up to 1000, we would have an even better idea.
+With the number of sims ramped up to 1000, we would have an even better idea,
+of course.
 
 But there are lots of problems/limitations focussing on NHST and power. So let's 
 focus on precision intead and the width of the intervals that we might expect.
@@ -755,7 +787,7 @@ p_q2.5 <- plot_w %>%
   facet_grid(fct_rev(subj_n) ~ b1)
 p_q2.5
 
-# ggsave("figures/params_by_Q2.5_x100.jpeg")
+ggsave("figures/params_by_Q2.5_x100.jpeg")
 ```
 
 Notice how this arrangement highlights the differences in widths among the 
@@ -819,6 +851,7 @@ ggsave("figures/width_hist_n2_x100.jpeg")
 Take a random sample of the sims to look at a few...
 
 ```{r}
+# make it reproducible
 set.seed(123)
 
 sample10 <- plot_w %>%
@@ -863,67 +896,68 @@ plot_w %>%
             power_04 = mean(below_04),
             power_03 = mean(below_03))
 
-#  subj_n b1    power_05 power_04 power_03
+# subj_n b1    power_05 power_04 power_03
 #   <fct>  <fct>    <dbl>    <dbl>    <dbl>
-# 1 25     0.25      0.47     0        0   
-# 2 25     0.5       0.34     0.02     0   
-# 3 25     0.75      0.35     0.01     0   
-# 4 50     0.25      1        0.74     0.01
-# 5 50     0.5       1        0.63     0.02
-# 6 50     0.75      1        0.65     0.05
-# 7 75     0.25      1        1        0.28
-# 8 75     0.5       1        1        0.43
-# 9 75     0.75      1        1        0.26
+# 1 25     0.25      0.93     0.55     0   
+# 2 25     0.5       0.91     0.56     0   
+# 3 25     0.75      0.87     0.48     0   
+# 4 50     0.25      1        0.95     0.62
+# 5 50     0.5       1        0.93     0.54
+# 6 50     0.75      0.99     0.85     0.5 
+# 7 75     0.25      1        0.99     0.79
+# 8 75     0.5       1        0.98     0.79
+# 9 75     0.75      0.99     0.93     0.73
 ```
 
-ok, at N=50, widths < 0.5 look good (e.g., 100%), not so good at <0.4 (e.g., 65-75%) 
-and terrible at < .3
+ok, at N=50, widths < 0.4 look good (e.g., 85/95%), not so good at <0.3 
+(e.g., 50-60%).
 
-At N=75, things are more precise of course.
+At N=75, things are more precise of course and even look good at < 0.3 (~80%).
 
-As one example, our simulation, therefore, suggests that we have about a 65% 
-probability of achieving 95% CI widths of .04 or smaller with n=50, but 100%
-of widths will likely be under 0.5.
+As one example, our simulation suggests that we have between 85-95% 
+probability of achieving 95% quantile widths of .04 or smaller with n=50, with 99%
+of widths likely to be under 0.5.
 
 At this point, it really depends on the aim and goal of the project to determine
 if such widths are appropriate and which sample size is most reasonable given the 
-balance between resources and precision.
+balance between resources available and the level of precision required or desired.
 
 
-Using the .8 criterion would give our AIPE analyses a sense of familiarity with 
-traditional power analyses, which some reviewers might appreciate. But in his 
-text, Kruschke mentioned several other alternatives. One would be to set maximum 
-value for our CI widths and simulate to find the nn necessary so all our 
-simulations pass that criterion. Another would follow Joseph, Wolfson, and 
-du Berger ( 1995, 1995), who suggested we shoot for an N that produces widths 
-that pass that criterion on average. Here’s how we did based on the 
-average-width criterion.
+This text is from Solomon's blog post: Using the .8 criterion would give our 
+AIPE analyses a sense of familiarity with traditional power analyses, which some 
+reviewers might appreciate. But in his text, Kruschke mentioned several other 
+alternatives. One would be to set maximum value for our CI widths and simulate 
+to find the nn necessary so all our simulations pass that criterion. Another 
+would follow Joseph, Wolfson, and du Berger ( 1995, 1995), who suggested we 
+shoot for an N that produces widths that pass that criterion on average. 
+Here’s how we did based on the average-width criterion.
+
 
 ```{r}
 plot_w %>%
   group_by(subj_n, b1) %>%
   summarise(avg_width = mean(width))
 
-#   subj_n b1    avg_width
+#  subj_n b1    avg_width
 #   <fct>  <fct>     <dbl>
-# 1 25     0.25      0.517
-# 2 25     0.5       0.538
-# 3 25     0.75      0.525
-# 4 50     0.25      0.376
-# 5 50     0.5       0.386
-# 6 50     0.75      0.384
-# 7 75     0.25      0.312
-# 8 75     0.5       0.309
-# 9 75     0.75      0.313
+# 1 25     0.25      0.398
+# 2 25     0.5       0.398
+# 3 25     0.75      0.414
+# 4 50     0.25      0.298
+# 5 50     0.5       0.304
+# 6 50     0.75      0.316
+# 7 75     0.25      0.251
+# 8 75     0.5       0.257
+# 9 75     0.75      0.271
 ```
 
 ok, so the averages look like this approximately.
 
-N25 = ~0.5
-N50 = ~0.4
-N75 = ~0.3
+N25 = ~0.4
+N50 = ~0.3
+N75 = ~0.25-0.27
 
-Using N50 and ~0.4 would mean that an effect of 0.5 could be distinguished 
+Using N=50 and ~0.3 would mean that an effect of 0.5 could be distinguished 
 pretty consistently from 0.3 and 0.7. And maybe that's useful to know for theory
 and likely effect sizes etc. 
 
@@ -936,7 +970,7 @@ with a given N, how precise would our estimates be? And what other effect sizes
 would be likely to be able to rule-out? This means this is no longer about clearing
 zero, but it is instead about guiding expectations about likely precision. 
 
-e.g., with N=50 and and avg. interval <~0.4, we can be reasonably confident that
+e.g., with N=50 and and avg. interval <~0.3, we can be reasonably confident that
 we could distinguish an effect of 0.5 from 0.3 and 0.7. Why that might be useful 
 or important would entirely depend on domain knowledge and the context. In this case, 
 it is for basic research and understanding, so there is no immediate applied 
