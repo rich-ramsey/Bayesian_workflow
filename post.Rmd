@@ -104,7 +104,8 @@ head(data)
 ## Look at the point and interval estimates for the full model ##
 
 using posterior_samples and tidybayes. (there are shortcut functions for this, 
-but I like to see the posterior samples and wrangle them myself.)
+but I like to see the posterior samples in full and wrangle them myself whenever
+this is fairly straightforward.)
 
 ```{r}
 post <- as_draws_df(bm1.4) %>%  #
@@ -195,7 +196,8 @@ p_tidy_fixed <- ggplot(tidy_fixed, aes(x = value, y = fct_rev(term), fill=term))
 p_tidy_fixed
 
 # n50
-ggsave ("figures/n50/bm1.4_fixef.jpeg")
+ggsave ("figures/n50/bm1.4_fixef.jpeg",
+        width = 5, height = 3)
 ```
 
 ## make a table of fixed effects ##
@@ -215,7 +217,7 @@ tab_df(fix_tab,
        file="tables/n50/bm1.4_fixed.doc")
 ```
 
-## plot the effect of condition across the different models ##
+## plot fixed effects across different models ##
 
 wrangle all models with cond as a predictor
 
@@ -259,7 +261,7 @@ p_tidy_fixed_all
 
 # n50
 ggsave ("figures/n50/all_fixef.jpeg",
-        width = 4, height = 4)
+        width = 5, height = 4)
 ```
 
 
@@ -305,8 +307,8 @@ p_tidy_vary <- ggplot(tidy_vary, aes(x = value, y = fct_rev(term), fill=term)) +
         # axis.text.y  = element_blank(),
         # axis.ticks.y = element_blank(),
         legend.position = "none") +
-  coord_cartesian(xlim =c(0, 1.5)) +
-  scale_x_continuous(breaks=seq(0,1.5,0.5))
+  coord_cartesian(xlim =c(0, 1)) +
+  scale_x_continuous(breaks=seq(0,1,0.5))
 p_tidy_vary
 
 ggsave ("figures/n50/varypp.jpeg")
@@ -391,16 +393,14 @@ ggsave ("figures/n50/varyvalspp.jpeg")
 
 use add_epred_draws from the tidybayes package
 
-We’ll use epred_draws() from tidybayes to plug in a hypothetical dataset and 
-generate predictions, as we did with previous models. Only this time, instead 
-of getting a single predicted value for each level of quota, we’ll get 4,000. 
-The epred_draws() (like all tidybayes functions) returns a long tidy data frame, 
-so it’s really easy to plot with ggplot:
+We’ll use epred_draws() from the tidybayes package to plug in a hypothetical 
+dataset and generate predictions. The epred_draws() (like all tidybayes functions) 
+returns a long tidy data frame, so it’s really easy to plot with ggplot:
 
 ```{r}
 ame_bm1.4 <- data %>%
   data_grid(subj, item, cond) %>%
-  add_epred_draws(bm1.4, ndraws = 4000) %>% 
+  add_epred_draws(bm1.4) %>% 
   mutate(condition = if_else(cond == -0.5, "congr", "icong"), ## this is just helpful for plotting
          condition = factor(condition))
 head(ame_bm1.4)  
@@ -409,8 +409,6 @@ head(ame_bm1.4)
 write_csv(ame_bm1.4, "data/n50/p_preds.csv")
 
 ame_bm1.4 %>%
-  # mutate(condition = if_else(cond == -0.5, "congr", "incon"),
-  #        condition = factor(condition, levels = c("congr", "incon"))) %>% 
   group_by(condition) %>% 
   median_hdi(.epred)
 ```
@@ -421,14 +419,17 @@ plot
 p_preds <- ggplot(ame_bm1.4, aes(x = .epred, y = condition, fill = condition)) +
   stat_halfeye(.width = c(0.8, 0.95), point_interval = "median_hdi") +
   scale_x_continuous() +
-  labs(x = "Average marginal effect of condition on rt", 
+  labs(title = "Posterior predictions by condition",
+       x = "Average marginal effect of condition on rt (standard units)", 
        y = NULL,
        caption = "80% and 95% credible intervals shown in black") +
   theme_bw() +
+  scale_fill_brewer(palette = "Dark2") +
   theme(legend.position = "bottom")
 p_preds
 
-ggsave ("figures/n50/preds.jpeg")
+ggsave ("figures/n50/preds.jpeg",
+        width = 5, height = 4)
 ```
 
 we can also use compare levels in tidybayes to get the difference between these
@@ -447,10 +448,12 @@ ggplot(diff_pred, aes(x = .epred, y = cond)) +
                fill = "#bc3032") +
   geom_vline(xintercept = 0) +
   scale_y_discrete(labels = "incon - congr") +
-  labs(x = "Average marginal effect of congruency", 
+  labs(title = "Posterior predictions for the difference score",
+       x = "Average marginal effect of congruency on rt (standard units)", 
        y = NULL, caption = "80% and 95% credible intervals shown in black") +
   theme_bw() 
 
-ggsave ("figures/n50/diff_preds.jpeg")
+ggsave ("figures/n50/diff_preds.jpeg",
+        width = 5, height = 4)
 ```
 
