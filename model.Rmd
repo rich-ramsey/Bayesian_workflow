@@ -40,11 +40,20 @@ is unreliable. In the present paper we discuss such diagnostics for HMC.
 
 From Gelman & Co., page 30, on "Evaluating a fitted model":
 
->Once a model has been fit, the workflow of evaluating that fit is more convoluted, because there are many different things that can be checked, and each of these checks can lead in many directions. Statistical models can be fit with multiple goals in mind, and statistical methods are developed for different groups of users. The aspects of a model that needs to be checked will depend on the application.
+>Once a model has been fit, the workflow of evaluating that fit is more convoluted, 
+because there are many different things that can be checked, and each of these 
+checks can lead in many directions. Statistical models can be fit with multiple 
+goals in mind, and statistical methods are developed for different groups of users. 
+The aspects of a model that needs to be checked will depend on the application.
 
 and page 30 on posterior predictive checks:
 
->Posterior predictive checking is analogous to prior predictive checking (Section 2.4), but the parameter draws used in the simulations come from the posterior distribution rather than the prior. While prior predictive checking is a way to understand a model and the implications of the specified priors, posterior predictive checking also allows one to examine the fit of a model to real data (Box, 1980, Rubin, 1984, Gelman, Meng, and Stern, 1996).
+>Posterior predictive checking is analogous to prior predictive checking 
+(Section 2.4), but the parameter draws used in the simulations come from the 
+posterior distribution rather than the prior. While prior predictive checking 
+is a way to understand a model and the implications of the specified priors, 
+posterior predictive checking also allows one to examine the fit of a model to 
+real data (Box, 1980, Rubin, 1984, Gelman, Meng, and Stern, 1996).
 
 
 ## load the libraries that we will be using ## 
@@ -113,8 +122,8 @@ previously simulated and saved data.
 we'll just simulate for now.
 
 And based on the plan.Rmd script, we are going to simulate data with N=50 because
-that seemed to reach an acceptable level of power (95%) and precision with an 
-interval width < 0.4.
+that seemed to reach an acceptable level of power and precision in terms of the
+size of the interval width.
 
 ```{r}
 # make it reproducible
@@ -169,6 +178,17 @@ ggplot(data, aes(x=rt, fill=condition)) +
 # ggsave ("figures/density.jpeg")
 ```
 
+read in prior models, if they are already computed and you want to look at them
+
+```{r}
+# bm0 <- readRDS("models/n50/bm0.rds")
+# bm1 <- readRDS("models/n50/bm1.rds")
+# bm1.1 <- readRDS("models/n50/bm1.1.rds")
+# bm1.2 <- readRDS("models/n50/bm1.2.rds")
+# bm1.3 <- readRDS("models/n50/bm1.3.rds")
+# ## the full model
+# bm1.4 <- readRDS("models/n50/bm1.4.rds")
+```
 
 
 ## start building some models ##
@@ -218,7 +238,7 @@ plan(multicore)
 bm0 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
         control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
@@ -285,7 +305,7 @@ plan(multicore)
 bm1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
         control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
@@ -347,7 +367,7 @@ plan(multicore)
 bm1.1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
         control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
@@ -406,7 +426,7 @@ plan(multicore)
 bm1.2 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
         control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
@@ -429,7 +449,14 @@ ppbm1.2 <- pp_check(bm1.2, ndraws = 100)
 ppbm1.2
 ```
 
-1% divergent transitions. maybe run for longer??
+Warning message:
+There were 2 divergent transitions after warmup.
+
+We could dig into this if it were the real thing. But for now, it seems a very small
+number (out of 8000) and this is just a simulation, so let's not worry about it.
+And the caterpillar plots look good. 
+
+For the real thing though, it would be worth spending some time digging into this.
 
 ## bm1.3 - plus varying slopes (effects of cond) for items ##
 
@@ -471,7 +498,7 @@ plan(multicore)
 bm1.3 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
         control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
@@ -494,6 +521,11 @@ ppbm1.3 <- pp_check(bm1.3, ndraws = 100)
 ppbm1.3
 ```
 
+Warning message:
+There were 3 divergent transitions after warmup. 
+
+Again, for a simulation and such a small number out of the total, I wouldn't 
+worry about this. For the real thing with real data, I would try to resolve it. 
 
 ## bm1.4 - plus varying slopes (effects of cond) for participants ##
 
@@ -541,10 +573,14 @@ bm1.4 <- brm(formula = formula,
 summary(bm1.4)
 ```
 
-3 divergent transitions after warmup with standard iter (2k) and warmup (1k). 
+With standard iter (2k) and warmup (1k), there were 3 divergent transitions 
+after warmup 
 
 So I ran this one for a little longer, as it's the full model that I will
-focus on. I doubled the iter and warmup and there were no divergent transitions.
+focus on. I doubled the iter and warmup and there were then no divergent transitions.
+
+I then increased iter and warmup for all of the other models, even though I 
+don't think that's actually necessary.
 
 ## take a look ##
 
