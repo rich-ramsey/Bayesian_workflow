@@ -204,6 +204,7 @@ bm0 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
         iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm0")
@@ -270,6 +271,7 @@ bm1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
         iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm1")
@@ -331,6 +333,7 @@ bm1.1 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
         iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm1.1")
@@ -389,6 +392,7 @@ bm1.2 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
         iter = 2000, warmup = 1000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm1.2")
@@ -410,6 +414,7 @@ ppbm1.2 <- pp_check(bm1.2, ndraws = 100)
 ppbm1.2
 ```
 
+1% divergent transitions. maybe run for longer??
 
 ## bm1.3 - plus varying slopes (effects of cond) for items ##
 
@@ -452,15 +457,12 @@ bm1.3 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
         iter = 2000, warmup = 1000, cores = 20, chains = 4,
-        control = list(adapt_delta = 0.95),
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm1.3")
 summary(bm1.3)
 ```
-
-1 divergent transition initially (of 4000), so I increased adapt_delta using the
-control parameter as the warning suggested, see the above code chunk.
 
 ## take a look ##
 
@@ -516,13 +518,18 @@ plan(multicore)
 bm1.4 <- brm(formula = formula,
         data = data, family = gaussian(),
         prior = priors,
-        iter = 2000, warmup = 1000, cores = 20, chains = 4,
-        control = list(adapt_delta = 0.95),
+        iter = 4000, warmup = 2000, cores = 20, chains = 4,
+        control = list(adapt_delta = 0.99),
         save_pars = save_pars(all=TRUE),
         seed = 123,
         file = "models/n50/bm1.4")
 summary(bm1.4)
 ```
+
+3 divergent transitions after warmup with standard iter (2k) and warmup (1k). 
+
+So I ran this one for a little longer, as it's the full model that I will
+focus on. I doubled the iter and warmup and there were no divergent transitions.
 
 ## take a look ##
 
@@ -562,15 +569,15 @@ plot them
 
 ```{r} 
 p_chains <- chains %>% 
-  mcmc_trace(facet_args = list(ncol = 4)) +
-  scale_x_continuous(breaks = c(0, 4000)) +
+  mcmc_trace(facet_args = list(ncol = 3)) +
+  scale_x_continuous(breaks = c(0, 2000)) +
   theme_bw() +
   theme(legend.position = "bottom")
 p_chains
 
 # save it
 ggsave ("figures/n50/bm1.4_chains.jpeg",
-        width = 20, height = 13, units = "in", dpi = 300)
+        width =  6, height = 6, units = "in", dpi = 300)
 ```
 
 ## other diagnostics ##
