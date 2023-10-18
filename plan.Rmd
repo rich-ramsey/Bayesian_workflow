@@ -95,7 +95,7 @@ load the data if previously generated in the prior.Rmd script.
 This is the more complex and realistic dataset
 
 ```{r}
-d <- read_csv("data/d2.csv")
+d <- read_csv("data/prior/d2.csv")
 head(d)
 str(d)
 ```
@@ -444,7 +444,7 @@ sim_dat_x2 <-
   unnest(d)
 head(sim_dat_x2)
 
-write_csv(sim_dat_x2, "data/sim_dat_x2.csv")
+# write_csv(sim_dat_x2, "data/plan/sim_dat_x2.csv")
 ```
 
 and the same for params.
@@ -457,7 +457,7 @@ sim_p_x2 <-
                        rownames_to_column("parameter"))) %>% 
   unnest(param)
 
-write_csv(sim_p_x2, "data/sim_p_x2.csv")
+# write_csv(sim_p_x2, "data/plan/sim_p_x2.csv")
 ```
 
 plot
@@ -466,7 +466,7 @@ first, read in saved data and params, if available. Re-code factors.
 
 ```{r}
 ## data
-sim_dat_x2 <- read_csv("data/sim_dat_x2.csv") %>% 
+sim_dat_x2 <- read_csv("data/plan/sim_dat_x2.csv") %>% 
   mutate(subj_n = factor(subj_n, levels = c("25", "50")),
          b1 = factor(b1, levels = c("0.25", "0.5")),
          condition = factor(condition, 
@@ -474,7 +474,7 @@ sim_dat_x2 <- read_csv("data/sim_dat_x2.csv") %>%
 head(sim_dat_x2)
 
 ## parameters
-sim_p_x2 <- read_csv("data/sim_p_x2.csv") %>%
+sim_p_x2 <- read_csv("data/plan/sim_p_x2.csv") %>%
   mutate(subj_n = factor(subj_n, levels = c("25", "50")),
          b1 = factor(b1, levels = c("0.25", "0.5")),
          parameter = factor(parameter, levels = c("Intercept", "cond")))
@@ -610,13 +610,13 @@ save out parameters
 
 ```{r}
 ## save the parameters
-# write_csv(parameters, "data/sim_p_x100.csv")
+# write_csv(parameters, "data/plan/sim_p_x100.csv")
 ```
 
 alternatively, read in saved parameters, if they've already been computed and saved.
 
 ```{r}
-# parameters <- read_csv("data/sim_p_x100.csv")
+# parameters <- read_csv("data/plan/sim_p_x100.csv")
 # head(parameters)
 ```
 
@@ -634,7 +634,7 @@ param_qi <- parameters %>%
 head(param_qi)
 
 # save it
-write_csv(param_qi, "data/param_qi_x100.csv")
+write_csv(param_qi, "data/plan/param_qi_x100.csv")
 ```
 
 and now let's plot to make it easier to see these values, rather than read them
@@ -674,7 +674,7 @@ p_fixed <- ggplot(parameters, aes(x = Estimate, y = b1,
   facet_wrap(~parameter)
 p_fixed
 
-ggsave ("figures/sim_fixef_x100.jpeg",
+ggsave ("figures/plan/sim_fixef_x100.jpeg",
         width = 6, height = 4)
 ```
 
@@ -703,7 +703,7 @@ p_power <- ggplot(power, aes(x = b1, y = subj_n, fill = power)) +
   scale_fill_viridis_c(limits = c(0, 1)) 
 p_power
 # 
-ggsave ("figures/power_x100.jpeg")
+ggsave ("figures/plan/power_x100.jpeg")
 ```
 
 plot parameters and include power as a text label
@@ -738,7 +738,7 @@ p_params <- plot_params %>%
   facet_grid(fct_rev(subj_n) ~ b1) 
 p_params
 
-ggsave ("figures/parameters_x100.jpeg",
+ggsave ("figures/plan/parameters_x100.jpeg",
         width = 10, height = 6)
 ```
 
@@ -765,7 +765,7 @@ way to go initially to get a sense.
 ## load in the saved parameters if necessary ##
 
 ```{r}
-# parameters <- read_csv("data/sim_p_x100.csv") 
+# parameters <- read_csv("data/plan/sim_p_x100.csv") 
 # head(parameters)
 ```
 
@@ -795,7 +795,7 @@ p_q2.5 <- plot_w %>%
   facet_grid(fct_rev(subj_n) ~ b1)
 p_q2.5
 
-ggsave("figures/params_by_Q2.5_x100.jpeg")
+ggsave("figures/plan/params_by_Q2.5_x100.jpeg")
 ```
 
 Notice how this arrangement highlights the differences in widths among the 
@@ -821,7 +821,7 @@ p_hist <- plot_w %>%
   facet_grid(fct_rev(subj_n) ~ b1)
 p_hist
 
-# ggsave("figures/width_hist_x100.jpeg")
+# ggsave("figures/plan/width_hist_x100.jpeg")
 ```
 
 now re-plot but only by sample size.
@@ -837,7 +837,7 @@ p_hist_n <- plot_w %>%
   facet_wrap(~subj_n)
 p_hist_n
 
-# ggsave("figures/width_hist_n_x100.jpeg")
+# ggsave("figures/plan/width_hist_n_x100.jpeg")
 
 
 # overlaying sample size dists
@@ -853,7 +853,7 @@ p_hist_n2 <- plot_w %>%
   ggtitle("95% interval widths by simulated sample size")
 p_hist_n2
 
-ggsave("figures/width_hist_n2_x100.jpeg")
+ggsave("figures/plan/width_hist_n2_x100.jpeg")
 ```
 
 Take a random sample of the sims to look at a few...
@@ -881,7 +881,7 @@ sample10 <- plot_w %>%
   facet_grid(fct_rev(subj_n)~b1, scales = "free")
 sample10
 
-ggsave("figures/sample10.jpeg",
+ggsave("figures/plan/sample10.jpeg",
        width = 6, height = 8)
 ```
 

@@ -145,7 +145,7 @@ d1 <- d1 %>%
 head(d1)
 
 # save initial data
-write_csv(d1, "data/d1.csv")
+write_csv(d1, "data/prior/d1.csv")
 ```
 
 sample the prior
@@ -274,7 +274,7 @@ str(d2)
 summary(d2)
 
 # save initial data
-write_csv(d2, "data/d2.csv")
+write_csv(d2, "data/prior/d2.csv")
 ```
 
 density plot

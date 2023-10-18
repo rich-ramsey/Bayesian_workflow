@@ -90,7 +90,7 @@ bm1.4 <- readRDS("models/n50/bm1.4.rds")
 now read in the posterior predictions, if available.
 
 ```{r}
-# p_preds <- 
+# p_preds <- read_csv("data/n50/p_preds.csv")
 ```
 
 ## read in the data ##
