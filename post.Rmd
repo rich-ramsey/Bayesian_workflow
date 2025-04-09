@@ -214,6 +214,8 @@ p_tidy_fixed
 # n50
 ggsave ("figures/n50/bm1.4_fixef.jpeg",
         width = 8, height = 5)
+# ggsave ("figures/n50/bm1.4_fixef.png",
+#         width = 8, height = 5)
 ```
 
 ## make a table of fixed effects ##
