@@ -40,7 +40,7 @@ understand how the model relates to the data used to fit it.
 
 ```{r install-pkg}
 # install.packages(c("tidyverse", "RColorBrewer", "patchwork", "brms",
-#                    "tidybayes", "bayesplot", "patchwork", "future", 
+#                    "tidybayes", "bayesplot", "patchwork", "future",
 #                    "sjPlot", "modelr"))
 ```
 
@@ -71,6 +71,23 @@ options(mc.cores = parallel::detectCores(),
 supportsMulticore()
 
 detectCores()
+```
+
+## plot settings ##
+
+theme settings for ggplot
+
+```{r plot-settings}
+theme_set(
+  theme_bw() +
+    theme(text = element_text(size = 18, face = "bold"), 
+          title = element_text(size = 18, face = "bold"),
+          legend.position = "bottom")
+)
+
+## Set the amount of dodge in figures
+pd <- position_dodge(0.7)
+pd2 <- position_dodge(1)
 ```
 
 # Read in previously saved brms models object files and/or posterior predictions ##
@@ -183,10 +200,9 @@ p_tidy_fixed <- ggplot(tidy_fixed, aes(x = value, y = fct_rev(term), fill=term))
   stat_halfeye(point_size = 1) +
   labs(title = "Coefficient plot for fixed effects (predictors)",
        x = NULL, y = NULL) +
-  theme_bw() +
   scale_fill_brewer(palette="Dark2") +
   theme(panel.grid   = element_blank(),
-        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2), 
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/2),
                                           linetype = 3),
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank(),
@@ -197,7 +213,7 @@ p_tidy_fixed
 
 # n50
 ggsave ("figures/n50/bm1.4_fixef.jpeg",
-        width = 5, height = 3)
+        width = 8, height = 5)
 ```
 
 ## make a table of fixed effects ##
